@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
+import com.processos.Processo;
+
 public class LeitorDeProcessos {
 
     private static String lerArquivoDeProcessos(){
@@ -36,21 +38,21 @@ public class LeitorDeProcessos {
     public static Processo[] criarProcessos(){
 
         String arquivoTexto = lerArquivoDeProcessos();
+        String[] linhas = null;
 
         if (arquivoTexto.isBlank()) {
             throw new IllegalStateException("O arquivo está vazio");
         }
         
-        String[] linhas = arquivoTexto.split("\n");
+        linhas = arquivoTexto.split("\n");
 
         Processo[] processos = new Processo[linhas.length];
 
         for(int i = 0; i < linhas.length; i++){
-            System.out.println(linhas[i]);
+            String[] dados = linhas[i].split(";");
+            processos[i] = new Processo(dados);
         }
-
-        System.out.println(processos.length);
         
-        return null;
+        return processos;
     }
 }

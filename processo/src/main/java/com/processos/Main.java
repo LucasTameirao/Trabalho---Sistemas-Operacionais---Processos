@@ -4,6 +4,10 @@ import com.processos.util.LeitorDeProcessos;
 
 public class Main {
     public static void main(String[] args) {
-        LeitorDeProcessos.criarProcessos();
+        Processo[] processos = LeitorDeProcessos.criarProcessos();
+
+        for(Processo p : processos){
+            System.out.println(p);
+        }
     }
 }
