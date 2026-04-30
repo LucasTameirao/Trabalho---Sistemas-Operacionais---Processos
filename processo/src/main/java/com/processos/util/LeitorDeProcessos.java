@@ -29,7 +29,7 @@ public class LeitorDeProcessos {
         }
 
         while (scanner.hasNext()) {
-            arquivoFormatado.append(scanner.next() + "\n");
+            arquivoFormatado.append(scanner.nextLine() + "\n");
         }
 
         return arquivoFormatado.toString();

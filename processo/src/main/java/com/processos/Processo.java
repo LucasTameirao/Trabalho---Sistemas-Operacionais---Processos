@@ -13,6 +13,7 @@ public class Processo {
         this.chegada = chegada;
         this.burstTotal = burstTotal;
         this.instantesIO = instantesIO;
+        this.prioridade = prioridade;
     }
 
     public Processo(String[] dados){
@@ -42,6 +43,10 @@ public class Processo {
 
     private boolean possuiIO(String[] dados){
         return dados.length == 5;
+    }
+
+    public Processo quemTemPrioridade(Processo outro){
+        return prioridade <= outro.prioridade ? this : outro;
     }
 
     @Override
