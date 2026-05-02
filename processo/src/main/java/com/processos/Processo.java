@@ -73,4 +73,16 @@ public class Processo {
 
         return texto.toString();
     }
+
+    public int executarProcesso() {
+        int tempo = 0;
+        if(instantesIO != null){
+            for(int i = 0; i < instantesIO.length; i++){
+                tempo += TEMPO_DE_IO;
+            }
+        }
+        
+        tempo += burstTotal;
+        return tempo;
+    }
 }

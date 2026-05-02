@@ -9,5 +9,8 @@ public class Main {
         for(Processo p : processos){
             System.out.println(p);
         }
+
+
+        System.out.println("FCFS executado. Tempo total de execução " + FCFS.executarProcessos());
     }
 }
