@@ -135,6 +135,7 @@ public class FCFS {
     }
 
     private static void definirProcessoComoPronto(Processo p){
+        
         processosProntos.add(p);
         p.alterarEstado(EEstadoProcesso.PRONTO);
         if(processosEmEspera.contains(p)){
@@ -159,7 +160,8 @@ public class FCFS {
     }
 
     private static void esperar(){
-        for(Processo p : processosEmEspera){
+        for(int i = 0; i < processosEmEspera.size(); i++){
+            Processo p = processosEmEspera.get(i);
             System.out.println(p.esperar());
             System.out.println("processo " + p.getPid() + " esperou");
             System.out.println(p.estadoProcesso());
