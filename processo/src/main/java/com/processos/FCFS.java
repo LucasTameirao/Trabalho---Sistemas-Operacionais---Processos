@@ -6,116 +6,138 @@ import java.util.List;
 import com.processos.util.LeitorDeProcessos;
 
 public class FCFS {
-    private static Processo[] processos;
+    private static List<Processo> processos = new ArrayList<>();
     private static int tempo = 0;
 
     private static List<Processo> processosProntos = new ArrayList<>(); 
     private static List<Processo> processosEmEspera = new ArrayList<>(); 
 
     private static void lerProcessos(){
-        final int PRIMEIRO_PROCESSO = 0;
-        processos = LeitorDeProcessos.criarProcessos();
-        processosProntos.add(processos[PRIMEIRO_PROCESSO]);
-        tempo = 0;
+        processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
+        Processo novoProcesso = processos.getFirst();
+        definirProcessoComoPronto(novoProcesso);
+        processos.remove(novoProcesso);
     }
 
-    public static int executarProcessos(){
-        if(processos == null){
-            lerProcessos();
-        }
-        Processo processoEmExecucao = null;
-        int burstTotal = 0;
-        int[] instantesIO = null;
-        int[] temposDeTurnaround = null;
-        int tempoAtual = 0;
+    public static int iniciarSimulacao(){
+        lerProcessos();
+        tempo = executarProcessos();
+        return tempo;
+    }
 
-        while(temProcessosProntos()){
+    private static int executarProcessos(){
+
+        Processo processoEmExecucao;
+        int[] instantesIO;
+        int tempoTotalDeExecucao;
+        
+        while(temProcessosProntos() || !processosEmEspera.isEmpty()){
+            while(!processosEmEspera.isEmpty() && !temProcessosProntos()){
+                esperar();
+            }
+            System.out.println("tem processos prontos... ");
+            for(Processo p : processosProntos){
+                System.out.println(p);
+            }
             processoEmExecucao = executaPrimeiroDaLista();
-
-            burstTotal = processoEmExecucao.getBurstTotal();
+            System.out.println(processoEmExecucao);
             instantesIO = processoEmExecucao.getInstantesIO();
+            tempoTotalDeExecucao = processoEmExecucao.tempoTotalDeExecucao();
 
             if (instantesIO != null) {
+                System.out.println("entrou");
+                int proximoIO = processoEmExecucao.proximoTempoDeIO();
+                System.out.println(processoEmExecucao.getTurnaround());
+                
+                while(processoEmExecucao.getTurnaround() < tempoTotalDeExecucao){
+                    
 
-                // definindo o tamanho do vetor (literalmente o desenho do diagrama de gantt)
-                temposDeTurnaround = instantesIO[instantesIO.length - 1] == burstTotal ? new int[(instantesIO.length * 2) + 1] : new int[(instantesIO.length * 2) + 2];
-
-                // definindo o primeiro valor do vetor que é a chegada do processo
-                temposDeTurnaround[0] = processoEmExecucao.getChegada();
-
-                int k = 1;
-                int j = 0;
-                int i = 0;
-                while(tempoAtual < burstTotal){
-                    if(processos[i].getChegada() == tempo){ 
-                        definirProcessoComoPronto(processos[i++]);
-                    }
-                    if (tempoAtual == instantesIO[j]) {
-                        temposDeTurnaround[k] = tempoAtual;
-                        colocarProcessoEmEspera(processoEmExecucao, temposDeTurnaround);
-                        executarProcessos();
-                    }
-                    tempoAtual++;
+                    processoEmExecucao.executarProcesso();
                     tempo++;
                     esperar();
-                }
-
-                // for(int i = 0; i < instantesIO.length; i++){
-                //     if (tempoAtual >= 5) {
-                //         definirProcessoComoPronto(processosEmEspera.getFirst());
-                //     }
-                //     if(i == 0){
-                //         temposDeTurnaround[j] = temposDeTurnaround[j - 1] + instantesIO[i];
-                //     }else{
-                //         temposDeTurnaround[j] = temposDeTurnaround[j - 1] + (instantesIO[i] - instantesIO[i - 1]);
-                //     }
-                //     temposDeTurnaround[j + 1] = processo.getTEMPO_DE_IO() + temposDeTurnaround[j];
-                //     tempoAtual += temposDeTurnaround[j + 1];
+                    System.out.println("executou e esperou");
+                    Processo novoProcesso = processos.isEmpty() ? null : processos.getFirst();
+                    if(novoProcesso != null){
+                        System.out.println(novoProcesso);
+                    }
                     
-                //     j += 2;
-                // }
 
-                temposDeTurnaround[temposDeTurnaround.length - 1] = temposDeTurnaround[temposDeTurnaround.length - 2] + (processoEmExecucao.getBurstTotal() - instantesIO[instantesIO.length - 1]);
+                    //verifica se chegaram processos novos
+                    if(temNovosProcessos()){
+                        if(novoProcesso.getChegada() == tempo){ 
+                            definirProcessoComoPronto(novoProcesso);
+                            System.out.println("definiu como pronto, processo " + novoProcesso.getPid());
+                            processos.remove(novoProcesso);
+                            System.out.println("Processo " + novoProcesso.getPid() + " removido da lista");
+                        }
+                    }
 
-                System.out.println(processoEmExecucao);
-                System.out.println("===================\n");
-                for(Integer t : temposDeTurnaround){
-                    System.out.println(t);
+                    // verifica se o processo fez I/O para coloca-lo em espera
+                    if (processoEmExecucao.getTurnaround() == instantesIO[proximoIO]) {
+                        System.out.println("Identificou o I/O no momento " + instantesIO[proximoIO]);
+                        proximoIO++;
+                        processoEmExecucao.definirProximoIO(proximoIO);
+                        processoEmExecucao.aumentarTempoTotalDeExecucao();
+                        colocarProcessoEmEspera(processoEmExecucao);
+                        System.out.println("colocou processo em espera");
+                        break;
+                    }
+
+                    System.out.println("tempo de execução " + tempo);
                 }
-                System.out.println("===================\n");
-
-                tempo += temposDeTurnaround[temposDeTurnaround.length - 1];
             }
             else{
-                int i = 0;
+                Processo novoProcesso;
 
                 //verifica se durante a execução do processo surgiram mais processos
-                while (tempo < processoEmExecucao.getBurstTotal()) {
-                    if (tempo == processos[i].getChegada()) {
-                        definirProcessoComoPronto(processos[i++]);
-                    }
+                while (processoEmExecucao.getTurnaround() < tempoTotalDeExecucao) {
+                    processoEmExecucao.executarProcesso();
                     tempo++;
+                    esperar();
+
+                    if(temNovosProcessos()){
+                        novoProcesso = processos.getFirst();
+                        if (novoProcesso.getChegada() == tempo) {
+                            processos.remove(novoProcesso);
+                            definirProcessoComoPronto(novoProcesso);
+                        }
+                    }
                 }
             }
         }
 
+        System.out.println("Processos em espera");
+        for(Processo p : processosEmEspera){
+            System.out.println(p);
+        }
+        System.out.println("Processos prontos");
+        for(Processo p : processosProntos){
+            System.out.println(p);
+        }
         return tempo;
+    }
+
+    private static boolean temNovosProcessos() {
+        return !processos.isEmpty();
     }
 
     private static boolean temProcessosProntos() {
         return !processosProntos.isEmpty();
     }
 
-    private static void colocarProcessoEmEspera(Processo p, int[] temposDeTurnaround){
-        p.setTemposDeTurnaround(temposDeTurnaround);
-        processosEmEspera.add(p);
-        p.alterarEstado(EEstadoProcesso.EM_ESPERA);
-        processosProntos.remove(p);
+    private static void colocarProcessoEmEspera(Processo p){
+        if (p.colocarEmEspera() == EEstadoProcesso.EM_ESPERA) {
+            processosEmEspera.add(p);
+        }
+        if(processosProntos.contains(p)){
+            processosProntos.remove(p);
+        }
     }
 
     private static void definirProcessoComoPronto(Processo p){
         processosProntos.add(p);
-        if(!processosEmEspera.contains(p)){
+        p.alterarEstado(EEstadoProcesso.PRONTO);
+        if(processosEmEspera.contains(p)){
             processosEmEspera.remove(p);
         }
     }
@@ -124,21 +146,25 @@ public class FCFS {
         return p.estadoProcesso() == EEstadoProcesso.PRONTO;
     }
 
-    private static void trocaDeContexto(){
-
-    }
-
     private static Processo executaPrimeiroDaLista(){
-        Processo p = processosProntos.getFirst();
-        p.alterarEstado(EEstadoProcesso.EXECUTANDO);
-        processosProntos.remove(p);
+        Processo p = null;
+        if (temProcessosProntos()) {
+            p = processosProntos.getFirst();
+            p.alterarEstado(EEstadoProcesso.EXECUTANDO);
+            processosProntos.remove(p);
+        }
+
         return p;
+        
     }
 
     private static void esperar(){
         for(Processo p : processosEmEspera){
-            p.esperar();
-            if (processoEstahPronto(p)) {
+            System.out.println(p.esperar());
+            System.out.println("processo " + p.getPid() + " esperou");
+            System.out.println(p.estadoProcesso());
+            if (p.estadoProcesso() == EEstadoProcesso.PRONTO) {
+                System.out.println("FICOU PRONTO E FOI PRA LISTA DE PRONTOS");
                 definirProcessoComoPronto(p);
             }
         }

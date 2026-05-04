@@ -10,6 +10,28 @@ public class Processo {
     private final int TEMPO_DE_IO = 5;
     private EEstadoProcesso estado;
     private int tempoDeEspera = 0;
+    private int turnaround = 0;
+    private int proximoIO = 0;
+    private int tempoTotalDeExecucao;
+
+    public Processo(int pid, int chegada, int burstTotal, int prioridade, int[] instantesIO){
+        this.pid = pid;
+        this.chegada = chegada;
+        this.burstTotal = burstTotal;
+        this.instantesIO = instantesIO;
+        this.prioridade = prioridade;
+    }
+
+    public Processo(String[] dados){
+
+        pid = Integer.parseInt(dados[0]);
+        chegada = Integer.parseInt(dados[1]);
+        burstTotal = Integer.parseInt(dados[2]);
+        prioridade = Integer.parseInt(dados[3]);
+
+        instantesIO = converterInstantesParaInteiros(dados);
+        tempoTotalDeExecucao = burstTotal;
+    }
 
     public int getPid() {
         return pid;
@@ -38,24 +60,6 @@ public class Processo {
     public int[] setTemposDeTurnaround(int[] turnaround){
         temposDeTurnaround = turnaround;
         return temposDeTurnaround;
-    }
-
-    public Processo(int pid, int chegada, int burstTotal, int prioridade, int[] instantesIO){
-        this.pid = pid;
-        this.chegada = chegada;
-        this.burstTotal = burstTotal;
-        this.instantesIO = instantesIO;
-        this.prioridade = prioridade;
-    }
-
-    public Processo(String[] dados){
-
-        pid = Integer.parseInt(dados[0]);
-        chegada = Integer.parseInt(dados[1]);
-        burstTotal = Integer.parseInt(dados[2]);
-        prioridade = Integer.parseInt(dados[3]);
-
-        instantesIO = converterInstantesParaInteiros(dados);
     }
 
     private int[] converterInstantesParaInteiros(String[] dados){
@@ -107,15 +111,7 @@ public class Processo {
     }
 
     public int executarProcesso() {
-        int tempo = 0;
-        if(instantesIO != null){
-            for(int i = 0; i < instantesIO.length; i++){
-                tempo += TEMPO_DE_IO;
-            }
-        }
-        
-        tempo += burstTotal;
-        return tempo;
+        return ++turnaround;
     }
 
     public EEstadoProcesso alterarEstado(EEstadoProcesso e){
@@ -139,10 +135,41 @@ public class Processo {
     public int esperar() {
         if(estado == EEstadoProcesso.EM_ESPERA){
             tempoDeEspera--;
-        }
-        else if(tempoDeEspera == 0){
-            estado = EEstadoProcesso.PRONTO;
+            if(tempoDeEspera == 0){
+                alterarEstado(EEstadoProcesso.PRONTO);
+            }
         }
         return tempoDeEspera;
     }
+
+    public int[] getTemposDeTurnaround() {
+        return temposDeTurnaround;
+    }
+
+    public int getTurnaround() {
+        return turnaround;
+    }
+
+    public int proximoTempoDeIO(){
+        return proximoIO;
+    }
+
+    public int definirProximoIO(int proximoIO) {
+        this.proximoIO = proximoIO;
+        if(proximoIO >= instantesIO.length){
+            instantesIO = null;
+            this.proximoIO = -1;
+        }
+        return this.proximoIO;
+    }
+
+    public int aumentarTempoTotalDeExecucao() {
+        tempoTotalDeExecucao += TEMPO_DE_IO;
+        return tempoTotalDeExecucao;
+    }
+
+    public int tempoTotalDeExecucao(){
+        return tempoTotalDeExecucao;
+    }
+
 }
