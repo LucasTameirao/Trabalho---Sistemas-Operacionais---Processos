@@ -1,8 +1,8 @@
 package com.processos;
 
 public class Pilha<T> {
-    Celula<T> topo;
-    Celula<T> fundo;
+    private Celula<T> topo;
+    private Celula<T> fundo;
 
     public Pilha(){
         Celula<T> sentinela = new Celula<T>(null);
@@ -27,6 +27,10 @@ public class Pilha<T> {
             topo = topo.getProximo();
         }
         return desempilhado.getItem();
+    }
+
+    public T consultarTopo(){
+        return topo.getItem();
     }
 
     @Override

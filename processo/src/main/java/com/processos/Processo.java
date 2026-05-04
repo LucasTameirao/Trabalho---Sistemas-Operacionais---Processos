@@ -6,7 +6,39 @@ public class Processo {
     private int burstTotal;
     private int prioridade;
     private int[] instantesIO;
-    final int TEMPO_DE_IO = 5;
+    private int[] temposDeTurnaround = null;
+    private final int TEMPO_DE_IO = 5;
+    private EEstadoProcesso estado;
+    private int tempoDeEspera = 0;
+
+    public int getPid() {
+        return pid;
+    }
+
+    public int getChegada() {
+        return chegada;
+    }
+
+    public int getBurstTotal() {
+        return burstTotal;
+    }
+
+    public int getPrioridade() {
+        return prioridade;
+    }
+
+    public int[] getInstantesIO() {
+        return instantesIO;
+    }
+
+    public int getTEMPO_DE_IO() {
+        return TEMPO_DE_IO;
+    }
+
+    public int[] setTemposDeTurnaround(int[] turnaround){
+        temposDeTurnaround = turnaround;
+        return temposDeTurnaround;
+    }
 
     public Processo(int pid, int chegada, int burstTotal, int prioridade, int[] instantesIO){
         this.pid = pid;
@@ -84,5 +116,33 @@ public class Processo {
         
         tempo += burstTotal;
         return tempo;
+    }
+
+    public EEstadoProcesso alterarEstado(EEstadoProcesso e){
+        estado = e;
+        if(estado == EEstadoProcesso.EM_ESPERA){
+            tempoDeEspera = TEMPO_DE_IO;
+        }
+        return estado;
+    }
+
+    public EEstadoProcesso colocarEmEspera(){
+        estado = EEstadoProcesso.EM_ESPERA;
+        tempoDeEspera = 5;
+        return estado;
+    }
+
+    public EEstadoProcesso estadoProcesso(){
+        return estado;
+    }
+
+    public int esperar() {
+        if(estado == EEstadoProcesso.EM_ESPERA){
+            tempoDeEspera--;
+        }
+        else if(tempoDeEspera == 0){
+            estado = EEstadoProcesso.PRONTO;
+        }
+        return tempoDeEspera;
     }
 }
