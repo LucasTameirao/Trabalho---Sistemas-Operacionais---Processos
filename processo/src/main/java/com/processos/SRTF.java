@@ -1,5 +1,9 @@
+package com.processos;
+
 import java.util.ArrayList;
 import java.util.List;
+
+import com.processos.util.LeitorDeProcessos;
 
 public class SRTF {
     private static List<Processo> processos = new ArrayList<>();

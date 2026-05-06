@@ -34,6 +34,7 @@ public class FCFS {
         while(temProcessosProntos() || !processosEmEspera.isEmpty()){
             while(!processosEmEspera.isEmpty() && !temProcessosProntos()){
                 esperar();
+                tempo++;
             }
             System.out.println("tem processos prontos... ");
             for(Processo p : processosProntos){

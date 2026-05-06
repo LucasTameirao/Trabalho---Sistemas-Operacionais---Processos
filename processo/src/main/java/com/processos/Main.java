@@ -10,6 +10,6 @@ public class Main {
         //     System.out.println(p);
         // }
         // System.out.println(lista[2]);
-        System.out.println("FCFS executado. Tempo total de execução " + FCFS.iniciarSimulacao());
+        System.out.println("SRTF executado. Tempo total de execução " + MLQ.iniciarSimulacao());
     }
 }
