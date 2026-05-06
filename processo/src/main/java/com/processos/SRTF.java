@@ -22,13 +22,14 @@ public class SRTF {
     }
 
     private static int executarProcessos() {
-        Processo emExecucao;
+
+        Processo processoEmExecucao;
 
         while (temProcessosProntos() || !processosEmEspera.isEmpty()) {
+
             while (!processosEmEspera.isEmpty() && !temProcessosProntos()) {
                 esperar();
                 tempo++;
-
                 if (temNovosProcessos()) {
                     Processo novoProcesso = processos.getFirst();
                     if (novoProcesso.getChegada() <= tempo) {
@@ -38,41 +39,46 @@ public class SRTF {
                 }
             }
 
-            emExecucao = executaMenorTempoRestante();
+            processoEmExecucao = executaMenorTempoRestante();
 
-            System.out.println("processo " + emExecucao.getPid() + " tempo restante: " + emExecucao.tempoRestante());
+            System.out.println("Executando processo " + processoEmExecucao.getPid()
+                    + " | tempo restante: " + processoEmExecucao.tempoRestante());
 
-            while (emExecucao.tempoRestante() > 0) {
+            while (processoEmExecucao.tempoRestante() > 0) {
 
-                emExecucao.executarProcesso();
+                processoEmExecucao.executarProcesso();
                 tempo++;
                 esperar();
 
-                System.out.println("tempo " + tempo + " PID em execucao: " + emExecucao.getPid() + " estante: " + emExecucao.tempoRestante());
+                System.out.println("tempo: " + tempo
+                        + " | PID em execucao: " + processoEmExecucao.getPid()
+                        + " | restante: " + processoEmExecucao.tempoRestante());
 
                 if (temNovosProcessos()) {
                     Processo novoProcesso = processos.getFirst();
                     if (novoProcesso.getChegada() == tempo) {
                         definirProcessoComoPronto(novoProcesso);
                         processos.remove(novoProcesso);
-                        System.out.println("processo " + novoProcesso.getPid() + " chegou no tempo " + tempo);
+                        System.out.println("Processo " + novoProcesso.getPid() + " chegou no tempo " + tempo);
 
-                        if (devePreemptar(emExecucao)) {
-                            System.out.println("processo " + emExecucao.getPid() + "novo menor: " + menorTempoRestante().getPid());
-                            devolverParaProntos(emExecucao);
-                            emExecucao = executaMenorTempoRestante();
+                        if (devePreemptar(processoEmExecucao)) {
+                            System.out.println("Preempcao! Processo " + processoEmExecucao.getPid()
+                                    + " volta pra fila. Novo menor: " + menorTempoRestante().getPid());
+                            devolverParaProntos(processoEmExecucao);
+                            processoEmExecucao = executaMenorTempoRestante();
                         }
                     }
                 }
 
-                if (emExecucao.getInstantesIO() != null) {
-                    int proximoIO = emExecucao.proximoTempoDeIO();
-                    if (emExecucao.getTurnaround() == emExecucao.getInstantesIO()[proximoIO]) {
-                        System.out.println("processo " + emExecucao.getPid() + " fez I/O no tempo " + tempo);
+                if (processoEmExecucao.getInstantesIO() != null) {
+                    int proximoIO = processoEmExecucao.proximoTempoDeIO();
+                    if (processoEmExecucao.getTurnaround() == processoEmExecucao.getInstantesIO()[proximoIO]) {
+                        System.out.println("Processo " + processoEmExecucao.getPid()
+                                + " foi pra I/O no tempo " + tempo);
                         proximoIO++;
-                        emExecucao.definirProximoIO(proximoIO);
-                        emExecucao.aumentarTempoTotalDeExecucao();
-                        colocarProcessoEmEspera(emExecucao);
+                        processoEmExecucao.definirProximoIO(proximoIO);
+                        processoEmExecucao.aumentarTempoTotalDeExecucao();
+                        colocarProcessoEmEspera(processoEmExecucao);
                         break;
                     }
                 }
@@ -137,15 +143,15 @@ public class SRTF {
         }
     }
 
-    private static void esperar(){
-        for(int i = 0; i < processosEmEspera.size(); i++){
+    private static void esperar() {
+        for (int i = 0; i < processosEmEspera.size(); i++) {
             Processo p = processosEmEspera.get(i);
-            System.out.println(p.esperar());
-            System.out.println("processo " + p.getPid() + " esperou");
-            System.out.println(p.estadoProcesso());
+            p.esperar();
+            System.out.println("Processo " + p.getPid() + " esperando I/O...");
             if (p.estadoProcesso() == EEstadoProcesso.PRONTO) {
-                System.out.println("FICOU PRONTO E FOI PRA LISTA DE PRONTOS");
+                System.out.println("Processo " + p.getPid() + " voltou do I/O");
                 definirProcessoComoPronto(p);
             }
         }
     }
+}
