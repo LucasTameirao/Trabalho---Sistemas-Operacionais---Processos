@@ -172,4 +172,8 @@ public class Processo {
         return tempoTotalDeExecucao;
     }
 
+    public int tempoRestante() {
+        return tempoTotalDeExecucao - turnaround;
+    }
+
 }
