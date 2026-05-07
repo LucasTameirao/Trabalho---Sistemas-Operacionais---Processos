@@ -44,6 +44,7 @@ public class FilaMLQ {
 
     public List<Processo> mandarParaFinalDaFilaDePronto(Processo p) {
         processosProntos.add(p);
+        p.alterarEstado(EEstadoProcesso.PRONTO);
         return processosProntos;
     }
 
@@ -55,9 +56,9 @@ public class FilaMLQ {
 
     public void adicionarAhFilaDeEmEspera(Processo p) {
         processosEmEspera.add(p);
+        p.alterarEstado(EEstadoProcesso.EM_ESPERA);
         if (processosProntos.contains(p)) {
             processosProntos.remove(p);
         }
-        p.alterarEstado(EEstadoProcesso.EM_ESPERA);
     }
 }
