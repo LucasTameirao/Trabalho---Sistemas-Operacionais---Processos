@@ -52,6 +52,7 @@ public class MLQ {
                 esperar();
             }
 
+            //#region Round Robin
             // executando round robin (primeira fila)
             while (filaMaiorPrioridade.temProcessosProntos()) {
                 int quantum = 1;
@@ -64,13 +65,14 @@ public class MLQ {
                 instantesIO = processoEmExecucao.getInstantesIO();
                 novoProcesso = null;
                 
-                while (processoEmExecucao.getTurnaround() <= tempo && tempoDeProcessador < quantum) {
+                while (processoEmExecucao.getTurnaround() <= tempo) {
 
                     // verifica se já deu o tempo de processador
                     if (tempoDeProcessador == quantum) {
-                        System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d completou quantum, retornando à fila", 
-                                                 tempo, processoEmExecucao.getPid()));
+
+                        System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d completou quantum, retornando à fila",tempo, processoEmExecucao.getPid()));
                         mandarParaFinalDaFilaDePronto(processoEmExecucao);
+                        
                         break;
                     }
 
@@ -100,12 +102,17 @@ public class MLQ {
                             break;                          
                         }
                     }
+
+                    if(processoEmExecucao.getTurnaround() == processoEmExecucao.tempoTotalDeExecucao()){
+                        System.out.println(String.format("[FINALIZADO]] Tempo %d: Processo %d finalizou | Tempo total de processador: %d | Tempo total de processador esperado: %d", tempo, processoEmExecucao.getPid(), processoEmExecucao.getTurnaround(), processoEmExecucao.tempoTotalDeExecucao()));
+                    }
                     
                     tempoDeProcessador++;
                     esperar();
                 }
             }
 
+            //#region FCFS
             // executando FCFS (segunda fila)
             
             while (filaMenorPrioridade.temProcessosProntos() && !filaMaiorPrioridade.temProcessosProntos()) {
@@ -185,9 +192,10 @@ public class MLQ {
     private static void esperar() {
         tempo++;
         processoEmExecucao.executarProcesso();
-        // System.out.println(String.format("[DEBUG] Tempo %d: Incrementado", tempo));
+        System.out.println(String.format("[DEBUG] Tempo %d: Incrementado", tempo));
         filaMaiorPrioridade.esperar();
         filaMenorPrioridade.esperar();
+        
     }
 
     private static boolean temProcessosEmEspera() {

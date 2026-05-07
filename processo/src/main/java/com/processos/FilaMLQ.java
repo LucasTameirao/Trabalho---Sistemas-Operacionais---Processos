@@ -30,10 +30,14 @@ public class FilaMLQ {
     }
 
     public void esperar() {
-        for (Processo p : processosEmEspera) {
-            p.esperar();
-            if(p.estadoProcesso() == EEstadoProcesso.PRONTO){
-                adicionarAhFilaDePronto(p);
+        
+        if (temProcessosEmEspera()) {
+            for (int i = 0; i < processosEmEspera.size(); i++) {
+                processosEmEspera.get(i).esperar();
+                
+                if(processosEmEspera.get(i).estadoProcesso() == EEstadoProcesso.PRONTO){
+                    adicionarAhFilaDePronto(processosEmEspera.get(i));
+                }
             }
         }
     }
@@ -54,6 +58,6 @@ public class FilaMLQ {
         if (processosProntos.contains(p)) {
             processosProntos.remove(p);
         }
-        p.alterarEstado(EEstadoProcesso.PRONTO);
+        p.alterarEstado(EEstadoProcesso.EM_ESPERA);
     }
 }
