@@ -57,11 +57,6 @@ public class Processo {
         return TEMPO_DE_IO;
     }
 
-    public int[] setTemposDeTurnaround(int[] turnaround){
-        temposDeTurnaround = turnaround;
-        return temposDeTurnaround;
-    }
-
     private int[] converterInstantesParaInteiros(String[] dados){
         int instantes[] = null;
         String[] instantesTexto = null;
@@ -85,30 +80,7 @@ public class Processo {
         return prioridade <= outro.prioridade ? this : outro;
     }
 
-    @Override
-    public String toString() {
-        StringBuilder linhaHorizontal = new StringBuilder("============================\n");
-        StringBuilder texto = new StringBuilder(linhaHorizontal);
-        texto.append("PID: " + pid + "\n");
-        texto.append("Chegada: " + chegada + "\n");
-        texto.append("Burst Total: " + burstTotal + "\n");
-        texto.append("Prioridade: " + prioridade + "\n");
-
-        if (instantesIO == null) {
-            texto.append("Instantes de I/O: ---" + "\n");
-        }else{
-            StringBuilder instantes = new StringBuilder("");
-            for(int i = 0; i < instantesIO.length - 1; i++){
-                instantes.append(instantesIO[i] + ", ");
-            }
-            instantes.append(instantesIO[instantesIO.length - 1]);
-            texto.append("Instantes de I/O: " + instantes + "\n");
-        }
-
-        texto.append(linhaHorizontal);
-
-        return texto.toString();
-    }
+    
 
     public int executarProcesso() {
         return ++turnaround;
@@ -135,15 +107,11 @@ public class Processo {
     public int esperar() {
         if(estado == EEstadoProcesso.EM_ESPERA){
             tempoDeEspera--;
-            if(tempoDeEspera == 0){
+            if(tempoDeEspera <= 0){
                 alterarEstado(EEstadoProcesso.PRONTO);
             }
         }
         return tempoDeEspera;
-    }
-
-    public int[] getTemposDeTurnaround() {
-        return temposDeTurnaround;
     }
 
     public int getTurnaround() {
@@ -174,6 +142,35 @@ public class Processo {
 
     public int tempoRestante() {
         return tempoTotalDeExecucao - turnaround;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder linhaHorizontal = new StringBuilder("============================\n");
+        StringBuilder texto = new StringBuilder(linhaHorizontal);
+        texto.append("PID: " + pid + "\n");
+        texto.append("Chegada: " + chegada + "\n");
+        texto.append("Burst Total: " + burstTotal + "\n");
+        texto.append("Prioridade: " + prioridade + "\n");
+
+        if (instantesIO == null) {
+            texto.append("Instantes de I/O: ---" + "\n");
+        }else{
+            StringBuilder instantes = new StringBuilder("");
+            for(int i = 0; i < instantesIO.length - 1; i++){
+                instantes.append(instantesIO[i] + ", ");
+            }
+            instantes.append(instantesIO[instantesIO.length - 1]);
+            texto.append("Instantes de I/O: " + instantes + "\n");
+        }
+
+        texto.append(linhaHorizontal);
+
+        return texto.toString();
+    }
+
+    public EEstadoProcesso finalizarProcesso() {
+        return estado;
     }
 
 }

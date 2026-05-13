@@ -50,6 +50,7 @@ public class FilaMLQ {
 
     public Processo proximoProcessoPronto() {
         Processo novoProcesso = processosProntos.isEmpty() ? null : processosProntos.getFirst();
+        novoProcesso.alterarEstado(EEstadoProcesso.EXECUTANDO);
         processosProntos.remove(novoProcesso);
         return novoProcesso; 
     }
@@ -60,5 +61,22 @@ public class FilaMLQ {
         if (processosProntos.contains(p)) {
             processosProntos.remove(p);
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+
+        s.append("Processos PRONTOS: \n");
+        for(Processo p : processosProntos){
+            s.append(p + "\n");
+        }
+
+        s.append("Porcessos EM ESPERA: \n");
+        for(Processo p : processosEmEspera){
+            s.append(p + "\n");
+        }
+
+        return s.toString();
     }
 }
