@@ -106,11 +106,9 @@ public class SRTF {
      * (que deve ser ordenada por tempo de chegada).
      */
     private static void lerProcessos() {
-        processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
-        Processo primeiro = processos.getFirst();
-        definirProcessoComoPronto(primeiro);
-        processos.remove(primeiro);
-    }
+    processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
+    verificarChegadas(); // substitui o getFirst() manual
+}
 
 
     // =========================================================================
@@ -194,17 +192,10 @@ public class SRTF {
                     int proxIO = exec.proximoTempoDeIO(); // índice no array
 
                     if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
-                        // Avança o índice do próximo I/O.
                         exec.definirProximoIO(proxIO + 1);
-
-                        // Adiciona 5 unidades ao tempo total esperado de execução,
-                        // pois o processo voltará após o I/O com mais CPU a fazer.
-                        exec.aumentarTempoTotalDeExecucao();
-
-                        // Bloqueia o processo por 5 unidades de tempo.
+                        // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
                         colocarProcessoEmEspera(exec);
-
-                        // Sai do loop interno para rescheduling no loop externo.
+                        exec = null;
                         break;
                     }
                 }
@@ -213,7 +204,7 @@ public class SRTF {
             // Após sair do loop interno: se o processo ainda está EXECUTANDO,
             // significa que tempoRestante() chegou a zero → processo concluído.
             // (Se saiu por I/O ou preempção, o estado já foi alterado antes.)
-            if (exec.tempoRestante() <= 0 && exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
+            if (exec != null && exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
                 finalizarProcesso(exec, tempo);
             }
         }
@@ -231,13 +222,13 @@ public class SRTF {
      * Como a lista está ordenada por chegada, basta checar o primeiro.
      */
     private static void verificarChegadas() {
-    while (!processos.isEmpty()) {
+    while (!processos.isEmpty()) {          // ← while, não if
         Processo novo = processos.getFirst();
         if (novo.getChegada() <= tempo) {
             definirProcessoComoPronto(novo);
             processos.remove(novo);
         } else {
-            break; // lista está ordenada por chegada; nenhum outro chegou ainda
+            break;
         }
     }
 }

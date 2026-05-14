@@ -199,11 +199,9 @@ public class MLQ {
      * (prioridade==2). Isso vale tanto aqui quanto para chegadas durante a simulação.
      */
     private static void lerProcessos() {
-        processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
-        Processo primeiro = processos.getFirst();
-        definirProcessoComoPronto(primeiro);
-        processos.remove(primeiro);
-    }
+    processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
+    verificarChegadas(); // adiciona TODOS os que chegaram em t=0 de uma vez
+}
 
 
     // =========================================================================
@@ -291,9 +289,6 @@ public class MLQ {
                 // Quando ciclos == QUANTUM_FILA1, o processo esgotou sua fatia.
                 int ciclos = 0;
 
-                System.out.printf("[MLQ-RR] t=%d | PID=%d | restante=%d%n",
-                        tempo, exec.getPid(), exec.tempoRestante());
-
                 // ── Loop interno da Fila 1 ────────────────────────────────────
                 // Executa o processo ciclo a ciclo enquanto:
                 //   (a) ainda está em estado EXECUTANDO (não foi para I/O)
@@ -320,33 +315,12 @@ public class MLQ {
                         int proxIO = exec.proximoTempoDeIO();
                         if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
 
-                            // O processo atingiu um instante de I/O.
-                            // Avança o índice para o próximo I/O no array.
-                            // Se proxIO+1 >= array.length, definirProximoIO()
-                            // internamente faz instantesIO = null, indicando
-                            // que não há mais I/Os pendentes.
-                            exec.definirProximoIO(proxIO + 1);
-
-                            // Aumenta o tempo total de execução em TEMPO_DE_IO (5),
-                            // pois o processo ficará 5 ciclos bloqueado e depois
-                            // precisará continuar executando o burst restante.
-                            // Sem isso, tempoRestante() calcularia errado e o
-                            // processo seria encerrado prematuramente.
-                            exec.aumentarTempoTotalDeExecucao();
-
-                            // Delega à FilaMLQ o trabalho de mover o processo:
-                            // FilaMLQ.adicionarAhFilaDeEmEspera() remove o
-                            // processo de processosProntos (se ainda estiver lá),
-                            // chama p.colocarEmEspera() que inicializa o contador
-                            // tempoDeEspera = 5, e adiciona à lista de em espera.
-                            colocarProcessoEmEspera(exec, filaMaiorPrioridade);
-
-                            // Sinaliza que o processo saiu por I/O: define como
-                            // null para que o código pós-loop não tente finalizar
-                            // ou recolocar na fila um processo que já foi tratado.
-                            exec = null;
-                            break; // sai do loop interno para o próximo ciclo do while externo
-                        }
+                                exec.definirProximoIO(proxIO + 1);
+                                // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
+                                colocarProcessoEmEspera(exec, filaMaiorPrioridade);
+                                exec = null;
+                                break;
+                            }
                     }
 
                     // Executa 1 ciclo de CPU:
@@ -420,9 +394,6 @@ public class MLQ {
                 // Retira o primeiro processo da Fila 2 (FIFO) e marca como EXECUTANDO.
                 Processo exec = filaMenorPrioridade.proximoProcessoPronto();
 
-                System.out.printf("[MLQ-FCFS] t=%d | PID=%d | restante=%d%n",
-                        tempo, exec.getPid(), exec.tempoRestante());
-
                 // ── Loop interno da Fila 2 ────────────────────────────────────
                 // Executa o processo enquanto:
                 //   (a) ainda está em estado EXECUTANDO
@@ -437,16 +408,11 @@ public class MLQ {
                         int proxIO = exec.proximoTempoDeIO();
                         if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
 
-                            exec.definirProximoIO(proxIO + 1);
-                            exec.aumentarTempoTotalDeExecucao();
-
-                            // Envia para a fila de espera da FILA 2 (filaMenorPrioridade).
-                            // Quando o processo concluir o I/O, FilaMLQ.esperar()
-                            // o devolverá à lista de prontos da Fila 2 automaticamente.
-                            colocarProcessoEmEspera(exec, filaMenorPrioridade);
-
-                            exec = null;
-                            break;
+                                exec.definirProximoIO(proxIO + 1);
+                                // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
+                                colocarProcessoEmEspera(exec, filaMenorPrioridade);
+                                exec = null;
+                                break;
                         }
                     }
 
@@ -521,13 +487,14 @@ public class MLQ {
      * que inspeciona a prioridade do processo recém-chegado.
      */
     private static void verificarChegadas() {
-    while (!processos.isEmpty()) {
+    while (!processos.isEmpty()) {          // ← while em vez de if
         Processo novo = processos.getFirst();
         if (novo.getChegada() <= tempo) {
             definirProcessoComoPronto(novo);
             processos.remove(novo);
+            // continua o loop: verifica o próximo da lista
         } else {
-            break; // lista está ordenada por chegada; nenhum outro chegou ainda
+            break; // lista ordenada por chegada: se este não chegou, nenhum chegou
         }
     }
 }

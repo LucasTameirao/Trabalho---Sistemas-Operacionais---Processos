@@ -131,14 +131,9 @@ public class FCFS {
      * chegada de cada processo seja respeitado.
      */
     private static void lerProcessos() {
-        processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
-
-        // O arquivo está ordenado por chegada, então o primeiro processo
-        // é o que chega mais cedo (geralmente tempo 0).
-        Processo primeiro = processos.getFirst();
-        definirProcessoComoPronto(primeiro);
-        processos.remove(primeiro);
-    }
+    processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
+    verificarChegadas(); // adiciona TODOS os que chegaram em t=0 de uma vez
+}
 
 
     // =========================================================================
@@ -228,23 +223,9 @@ public class FCFS {
                         // O processo atingiu um instante de I/O:
                         // 1. Avança o índice para o próximo I/O no array.
                         exec.definirProximoIO(proxIO + 1);
-
-                        // 2. Aumenta o tempo total de execução em TEMPO_DE_IO (5),
-                        //    pois o processo precisará de mais tempo de CPU depois
-                        //    do I/O. Sem isso, o processo seria encerrado antes
-                        //    de terminar todo o burst de CPU.
-                        exec.aumentarTempoTotalDeExecucao();
-                        tempoTotalExec = exec.tempoTotalDeExecucao();
-
-                        // 3. Move o processo para a fila de espera de I/O.
+                        // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
                         colocarProcessoEmEspera(exec);
-
-                        // 4. Atualiza a referência local: definirProximoIO pode
-                        //    ter zerado instantesIO se este era o último I/O.
-                        instantesIO = exec.getInstantesIO();
-
-                        // 5. Sai do loop interno; o processo voltará ao loop externo
-                        //    quando concluir o I/O.
+                        exec = null;
                         break;
                     }
                 }
@@ -253,7 +234,7 @@ public class FCFS {
             // Se o processo ainda está no estado EXECUTANDO após o loop interno,
             // significa que ele terminou normalmente (não saiu por I/O).
             // Registramos o instante de fim para cálculo das métricas.
-            if (exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
+            if (exec != null && exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
                 finalizarProcesso(exec, tempo);
             }
         }
@@ -277,13 +258,14 @@ public class FCFS {
      * Se o primeiro ainda não chegou, nenhum outro chegou também.
      */
     private static void verificarChegadas() {
-    while (!processos.isEmpty()) {
+    while (!processos.isEmpty()) {          // ← while em vez de if
         Processo novo = processos.getFirst();
         if (novo.getChegada() <= tempo) {
             definirProcessoComoPronto(novo);
             processos.remove(novo);
+            // continua o loop: verifica o próximo da lista
         } else {
-            break; // lista está ordenada por chegada; nenhum outro chegou ainda
+            break; // lista ordenada por chegada: se este não chegou, nenhum chegou
         }
     }
 }

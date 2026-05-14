@@ -17,15 +17,15 @@ import com.processos.util.LeitorDeProcessos;
  * Esta variante adapta o quantum dinamicamente: a cada troca de contexto,
  * o quantum é recalculado como o MENOR τ (tau) entre todos os processos
  * na fila de prontos. τ é a previsão do próximo surto de CPU do processo,
- * calculada pela fórmula de Média Exponencial:
+  * Fórmula de atualização:
  *
- *     τ_{n+1} = α * t_n + (1 − α) * τ_n
+ *     proxima_previsao = (0.5 * ultimo_burst_real) + (0.5 * previsao_atual)
  *
  * Onde:
- *   - t_n  = duração real do último surto de CPU do processo
- *   - τ_n  = previsão anterior
- *   - α    = 0.5 (peso equilibrado entre passado e presente)
- *   - τ₀   = 10.0 (previsão inicial para processos sem histórico)
+ *   - ultimo_burst_real  = tempo de CPU que o processo usou no último surto
+ *   - previsao_atual     = previsão que foi feita para esse surto
+ *   - proxima_previsao   = nova previsão para o próximo surto
+ *   - previsao_inicial   = 10ms (usado quando o processo ainda não tem histórico)
  *
  * POR QUE O MENOR τ COMO QUANTUM?
  * O objetivo é garantir que processos curtos (interativos, com τ pequeno)
@@ -47,12 +47,11 @@ import com.processos.util.LeitorDeProcessos;
  */
 public class RRPreditivo {
 
-    // Constante de peso da média exponencial (α = 0.5, conforme enunciado).
-    // Valor 0.5 dá peso igual ao histórico passado e ao surto mais recente.
+    // Peso da média exponencial: 0.5 significa que passado e presente
+    // têm o mesmo peso na previsão do próximo surto.
     private static final double ALPHA = 0.5;
 
-    // Previsão inicial (τ₀ = 10ms, conforme enunciado).
-    // Todo processo novo começa com esta previsão, pois ainda não tem histórico.
+    // Previsão usada para processos novos, que ainda não têm histórico de CPU.
     private static final double TAU_0 = 10.0;
 
     // Processos aguardando chegada (ainda não estão no escalonador).
@@ -80,7 +79,8 @@ public class RRPreditivo {
      * Ponto de entrada único da simulação Round-Robin Preditivo.
      *
      * 1. resetar()            → limpa estado entre execuções.
-     * 2. lerProcessos()       → lê o arquivo e inicializa τ do primeiro processo.
+     * 2. lerProcessos()       → lê o arquivo e inicializa τ de todos os
+     *                           processos que chegam em t=0.
      * 3. executarProcessos()  → loop principal com lógica RR + média exponencial.
      * 4. Metricas             → calcula e exibe turnaround, espera e throughput.
      *
@@ -113,24 +113,21 @@ public class RRPreditivo {
     }
 
     /**
-     * Lê os processos do arquivo e prepara o primeiro para execução.
+     * Lê todos os processos do arquivo e inicializa a simulação.
      *
-     * Diferença em relação ao FCFS/SRTF:
-     * antes de colocar o primeiro processo na fila de prontos, inicializamos
-     * seu τ com TAU_0 (10.0). Isso é obrigatório porque menorTau() será
-     * chamado logo em seguida e cada processo precisa ter um τ válido.
+     * CORREÇÃO: em vez de colocar apenas o primeiro processo na fila,
+     * delegamos para verificarChegadas(), que usa um loop while e adiciona
+     * TODOS os processos cujo tempo de chegada <= tempo atual (t=0).
+     * Isso corrige o bug em que processos com chegada=0 entravam na fila
+     * um por ciclo em vez de todos simultaneamente.
+     *
+     * verificarChegadas() também inicializa τ = TAU_0 para cada processo
+     * adicionado, garantindo que menorTau() funcione corretamente desde
+     * a primeira iteração.
      */
     private static void lerProcessos() {
         processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
-        Processo primeiro = processos.getFirst();
-
-        // Inicializa a previsão inicial do processo com τ₀ = 10.
-        // Sem isso, getTau() retornaria 0.0 (valor padrão de double em Java),
-        // e o quantum seria calculado incorretamente na primeira iteração.
-        primeiro.inicializarTau(TAU_0);
-
-        definirProcessoComoPronto(primeiro);
-        processos.remove(primeiro);
+        verificarChegadas();
     }
 
 
@@ -174,6 +171,8 @@ public class RRPreditivo {
         while (temProcessosProntos() || !processosEmEspera.isEmpty()) {
 
             // ── CENÁRIO 1: CPU ociosa ─────────────────────────────────────────
+            // Todos os processos estão em I/O. Avança o tempo unidade por unidade
+            // até que algum conclua o I/O e retorne para a fila de prontos.
             while (!processosEmEspera.isEmpty() && !temProcessosProntos()) {
                 esperar();
                 tempo++;
@@ -184,15 +183,10 @@ public class RRPreditivo {
             // O quantum é o menor τ entre os processos na fila de prontos,
             // arredondado para o inteiro mais próximo (Math.round),
             // com mínimo de 1 para garantir que pelo menos 1 ciclo seja executado.
-            // Math.max(1, ...) evita quantum = 0 caso τ seja muito pequeno.
             int quantum = (int) Math.max(1, Math.round(menorTau()));
 
-            // Retira o processo da FRENTE da fila (ordem de chegada na fila).
-            // No Round-Robin, a ordem de acesso é FIFO dentro de cada "volta".
+            // Retira o processo da FRENTE da fila (FIFO circular).
             Processo exec = executaPrimeiroDaLista();
-
-            System.out.printf("[RR] t=%d | PID=%d | quantum=%d | τ=%.2f | restante=%d%n",
-                    tempo, exec.getPid(), quantum, exec.getTau(), exec.tempoRestante());
 
             // Contador de ciclos executados neste quantum.
             // Quando ciclosNoQuantum == quantum, o processo esgotou sua fatia de tempo.
@@ -214,33 +208,40 @@ public class RRPreditivo {
                 verificarChegadas();
 
                 // ── Verificação de I/O ────────────────────────────────────────
+                // Processo.getInstantesIO() retorna null se não há mais I/Os.
+                // Processo.proximoTempoDeIO() retorna o índice atual no array
+                // de instantes, indicando qual é o próximo a ser verificado.
+                // Processo.getTurnaround() retorna quantos ciclos de CPU o
+                // processo já consumiu ao total.
                 if (exec.getInstantesIO() != null) {
                     int proxIO = exec.proximoTempoDeIO();
-
                     if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
-                        exec.definirProximoIO(proxIO + 1);
-                        exec.aumentarTempoTotalDeExecucao();
 
-                        // Atualiza τ ANTES de ir para I/O.
-                        // O surto corrente (burstAtual) terminou aqui por I/O.
-                        // τ_{n+1} = 0.5 * burstAtual + 0.5 * τ_atual.
+                        // Avança o índice para o próximo I/O no array.
+                        exec.definirProximoIO(proxIO + 1);
+
+                        // CORREÇÃO: atualiza τ ANTES de bloquear o processo.
+                        // O surto corrente (burstAtual) encerrou aqui por I/O,
+                        // então registramos sua duração real na previsão.
                         // atualizarTau() também reseta burstAtual para o próximo surto.
+                        // A chamada a aumentarTempoTotalDeExecucao() foi REMOVIDA:
+                        // o mecanismo de EM_ESPERA já segura o processo por 5 unidades
+                        // automaticamente — somar +5 ao burst causava dupla contagem.
                         exec.atualizarTau(ALPHA);
 
                         colocarProcessoEmEspera(exec);
 
-                        // Sinaliza que o processo saiu por I/O (null = não precisa
-                        // de tratamento pós-loop para este processo).
+                        // Sinaliza que o processo saiu por I/O para o bloco pós-loop
+                        // não tentar finalizá-lo ou recolocá-lo na fila.
                         exec = null;
                         break;
                     }
                 }
             }
 
-            // Se exec é null, o processo foi para I/O — vai para a próxima iteração.
+            // ── Pós-loop ──────────────────────────────────────────────────────
+            // exec == null significa que o processo foi para I/O — já tratado acima.
             if (exec == null) continue;
-
-            // ── Pós-loop: processo terminou ou esgotou o quantum ──────────────
 
             if (exec.tempoRestante() <= 0) {
                 // O processo terminou dentro do quantum.
@@ -254,10 +255,7 @@ public class RRPreditivo {
                 // o processo ao FIM da fila de prontos (comportamento circular).
                 exec.atualizarTau(ALPHA);
                 exec.alterarEstado(EEstadoProcesso.PRONTO);
-                processosProntos.add(exec); // fim da fila → próxima "volta"
-
-                System.out.printf("[RR] PID=%d esgotou quantum, volta à fila. Novo τ=%.2f%n",
-                        exec.getPid(), exec.getTau());
+                processosProntos.add(exec);
             }
         }
 
@@ -289,24 +287,31 @@ public class RRPreditivo {
     }
 
     /**
-     * Verifica se algum processo do arquivo chegou no tempo atual
-     * e, em caso positivo, inicializa seu τ e o move para prontos.
+     * Verifica se algum processo do arquivo chegou no tempo atual e o move
+     * para a fila de prontos, inicializando seu τ antes de inserir.
      *
-     * Inicializar τ = TAU_0 aqui é essencial: processos que chegam durante
-     * a simulação ainda não têm histórico de CPU, então começam com a
-     * previsão padrão de 10 unidades de tempo.
+     * CORREÇÃO: substituído if por while para processar todos os processos
+     * com chegada <= tempo atual em uma única chamada. Sem isso, quando
+     * vários processos chegavam no mesmo instante (ex: chegada=0), apenas
+     * um entrava por ciclo, distorcendo o escalonamento.
+     *
+     * INICIALIZAÇÃO DE τ: obrigatória aqui porque processos que chegam
+     * durante a simulação ainda não têm histórico de CPU. Sem inicializar,
+     * getTau() retorna 0.0 (valor padrão de double em Java), e menorTau()
+     * calcularia um quantum de 0, travando a simulação.
      */
     private static void verificarChegadas() {
-    while (!processos.isEmpty()) {
-        Processo novo = processos.getFirst();
-        if (novo.getChegada() <= tempo) {
-            definirProcessoComoPronto(novo);
-            processos.remove(novo);
-        } else {
-            break; // lista está ordenada por chegada; nenhum outro chegou ainda
+        while (!processos.isEmpty()) {
+            Processo novo = processos.getFirst();
+            if (novo.getChegada() <= tempo) {
+                novo.inicializarTau(TAU_0); // processo novo sem histórico → τ₀ = 10
+                definirProcessoComoPronto(novo);
+                processos.remove(novo);
+            } else {
+                break; // lista ordenada por chegada: se este não chegou, nenhum chegou
+            }
         }
     }
-}
 
     /**
      * Registra a finalização do processo com seu instante de fim.
