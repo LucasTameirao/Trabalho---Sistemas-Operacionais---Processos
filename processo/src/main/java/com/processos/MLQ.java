@@ -3,19 +3,17 @@ package com.processos;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.naming.LimitExceededException;
-
 import com.processos.util.LeitorDeProcessos;
 
 public class MLQ {
     private static List<Processo> processos = new ArrayList<>();
     private static Processo processoEmExecucao = null;
     private static int tempo = 0;
-    
+
     private static FilaMLQ filaMaiorPrioridade = new FilaMLQ();
     private static FilaMLQ filaMenorPrioridade = new FilaMLQ();
 
-    public static int iniciarSimulacao(){
+    public static int iniciarSimulacao() {
         System.out.println("========== INICIANDO SIMULAÇÃO MLQ ==========");
         lerProcessos();
         System.out.println("Processos carregados com sucesso. Iniciando execução...");
@@ -29,15 +27,12 @@ public class MLQ {
         System.out.println("\n[LEITURA] Iniciando leitura de processos...");
         processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
         System.out.println(String.format("[LEITURA] Total de processos carregados: %d", processos.size()));
-        
+
         Processo novoProcesso = processos.getFirst();
-        System.out.println(String.format("[LEITURA] Primeiro processo (ID: %d, Prioridade: %d) definido como pronto", 
-                                  novoProcesso.getPid(), novoProcesso.getPrioridade()));
+        System.out.println(String.format("[LEITURA] Primeiro processo (ID: %d, Prioridade: %d) definido como pronto",
+                novoProcesso.getPid(), novoProcesso.getPrioridade()));
         definirProcessoComoPronto(novoProcesso);
         processos.remove(novoProcesso);
-        for(Processo p : processos){
-            System.out.println("Processo... " + p);
-        }
     }
 
     private static int executarProcessos() {
@@ -45,183 +40,146 @@ public class MLQ {
 
         int proximoIO;
         int[] instantesIO;
-        Processo novoProcesso = null;
-        
+        Processo novoProcesso;
+
         while (temProcessosProntos() || temProcessosEmEspera()) {
+
             while (temProcessosEmEspera() && !temProcessosProntos()) {
                 System.out.println(String.format("[EXECUÇÃO] Tempo %d: Aguardando processos I/O completarem...", tempo));
                 esperar();
                 tempo++;
+                verificarNovosProcessos();
             }
 
-            System.out.println("Fila maior prioridade:");
-            System.out.println(filaMaiorPrioridade);
-            System.out.println("Fila menor prioridade:");
-            System.out.println(filaMenorPrioridade);
-
-            //#region Round Robin
-            // executando round robin (primeira fila)
+            //#region Round Robin (fila de maior prioridade)
             while (filaMaiorPrioridade.temProcessosProntos()) {
-                
-                int quantum = 1;
-                int tempoDeProcessador = 0;
+
+                int quantum = 2;
+                int tempoNoProcessador = 0;
                 processoEmExecucao = filaMaiorPrioridade.proximoProcessoPronto();
-                
-                System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d (Prioridade 1 - RoundRobin) escalonado com quantum=%d", 
-                                         tempo, processoEmExecucao.getPid(), quantum));
-                
+
+                System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d (Prioridade 1 - RoundRobin) escalonado com quantum=%d",
+                        tempo, processoEmExecucao.getPid(), quantum));
+
                 proximoIO = processoEmExecucao.proximoTempoDeIO();
                 instantesIO = processoEmExecucao.getInstantesIO();
-                novoProcesso = null;
 
-                
-                
                 while (processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
 
-                    if (tempo >= 1000) {
-                        throw new IllegalStateException("Tempo de execução excedeu o tempo limite");
+                    if (tempo >= 10000) {
+                        throw new IllegalStateException("Tempo de execução excedeu o limite");
                     }
-                    
 
-                    if (processoEmExecucao.getTurnaround() >= processoEmExecucao.getBurstTotal()) {
-                        processoEmExecucao.finalizarProcesso();
-                        System.out.println(String.format("[FINALIZADO]] Tempo %d: Processo %d finalizou | Tempo total de processador: %d | Tempo total de processador esperado: %d", tempo, processoEmExecucao.getPid(), processoEmExecucao.getTurnaround(), processoEmExecucao.tempoTotalDeExecucao()));
-                        System.out.println("\n\n\n\n\n\n\n\n\n");
+                    // verifica se o processo terminou o burst
+                    if (processoEmExecucao.getTurnaround() >= processoEmExecucao.tempoTotalDeExecucao()) {
+                        processoEmExecucao.alterarEstado(EEstadoProcesso.FINALIZADO);
+                        System.out.println(String.format("[FINALIZADO] Tempo %d: Processo %d finalizou",
+                                tempo, processoEmExecucao.getPid()));
                         break;
                     }
 
-                    if (instantesIO != null && processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
-                        if(processoEmExecucao.getTurnaround() == instantesIO[proximoIO]){
-                            System.out.println(String.format("[I/O] Tempo %d: Processo %d iniciou I/O (instante I/O: %d)", 
-                                                     tempo, processoEmExecucao.getPid(), instantesIO[proximoIO]));
-                            proximoIO++;
-                            processoEmExecucao.definirProximoIO(proximoIO);
-                            colocarProcessoEmEspera(processoEmExecucao, filaMaiorPrioridade);                       
-                        }
+                    // verifica se o processo deve ir para I/O
+                    if (instantesIO != null && processoEmExecucao.getTurnaround() == instantesIO[proximoIO]) {
+                        System.out.println(String.format("[I/O] Tempo %d: Processo %d iniciou I/O",
+                                tempo, processoEmExecucao.getPid()));
+                        proximoIO++;
+                        processoEmExecucao.definirProximoIO(proximoIO);
+                        colocarProcessoEmEspera(processoEmExecucao, filaMaiorPrioridade);
+                        break;
                     }
 
-                    if (tempoDeProcessador == quantum && processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
-                        System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d completou quantum, retornando à fila",tempo, processoEmExecucao.getPid()));
+                    // verifica se o quantum foi esgotado
+                    if (tempoNoProcessador == quantum) {
+                        System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d completou quantum, retornando à fila",
+                                tempo, processoEmExecucao.getPid()));
                         mandarParaFinalDaFilaDePronto(processoEmExecucao, filaMaiorPrioridade);
+                        break;
                     }
 
-                    if(processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO){
-                        processoEmExecucao.executarProcesso();
-                    }
-
-                    if (temProcessosEmEspera()) {
-                        esperar();
-                    }
-                    
+                    processoEmExecucao.executarProcesso();
+                    tempoNoProcessador++;
                     tempo++;
-                    System.out.println(String.format("[DEBUG] Tempo %d: Incrementado", tempo));
+                    esperar();
+                    verificarNovosProcessos();
 
-                    if (temNovosProcessos()) {
-                        novoProcesso = processos.getFirst();
-                        if (novoProcesso.getChegada() == tempo) {
-                            System.out.println(String.format("[CHEGADA] Tempo %d: Novo processo chegou! ID: %d, Prioridade: %d", 
-                                                    tempo, novoProcesso.getPid(), novoProcesso.getPrioridade()));
-                            definirProcessoComoPronto(novoProcesso);
-                            processos.remove(novoProcesso);
-                        }
-                    }
-                    
-
-                    //verifica se chegaram processos novos
-                    
-
-                    //verifica se o processo fez I/O
-
-                    
-                    
+                    System.out.println(String.format("[DEBUG] Tempo %d: Processo %d | turnaround: %d | total: %d",
+                            tempo, processoEmExecucao.getPid(),
+                            processoEmExecucao.getTurnaround(),
+                            processoEmExecucao.tempoTotalDeExecucao()));
                 }
             }
+            //#endregion
 
-            //#region FCFS
-            // executando FCFS (segunda fila)
-            
+            //#region FCFS (fila de menor prioridade)
             while (filaMenorPrioridade.temProcessosProntos() && !filaMaiorPrioridade.temProcessosProntos()) {
 
                 processoEmExecucao = filaMenorPrioridade.proximoProcessoPronto();
-                System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d (Prioridade 2 - FCFS) escalonado", 
-                                         tempo, processoEmExecucao.getPid()));
-                
-                novoProcesso = null;
+                System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo %d (Prioridade 2 - FCFS) escalonado",
+                        tempo, processoEmExecucao.getPid()));
 
-                while (processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO && !filaMaiorPrioridade.temProcessosProntos()) {
+                proximoIO = processoEmExecucao.proximoTempoDeIO();
+                instantesIO = processoEmExecucao.getInstantesIO();
 
-                    proximoIO = processoEmExecucao.proximoTempoDeIO();
-                    instantesIO = processoEmExecucao.getInstantesIO();
+                while (processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO
+                        && !filaMaiorPrioridade.temProcessosProntos()) {
 
-                    if (processoEmExecucao.getInstantesIO() != null) {
-
-                        if (temNovosProcessos()) {
-                            novoProcesso = processos.getFirst();
-                            
-                            if(novoProcesso.getChegada() == tempo){
-                                System.out.println(String.format("[CHEGADA] Tempo %d: Novo processo chegou! ID: %d, Prioridade: %d", 
-                                                     tempo, novoProcesso.getPid(), novoProcesso.getPrioridade()));
-                                definirProcessoComoPronto(novoProcesso);
-                                if (novoProcesso.getPrioridade() == 1) {
-                                    System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo de alta prioridade chegou, interrompendo FCFS", tempo));
-                                    mandarParaFinalDaFilaDePronto(processoEmExecucao, filaMenorPrioridade);
-                                }
-                            }
-                        }
-
-                        if (processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
-                            System.out.println(String.format("[EXECUÇÃO] Tempo %d: Processo %d tem instantes de I/O definidos", tempo, processoEmExecucao.getPid()));
-                        
-                            if (processoEmExecucao.getTurnaround() == instantesIO[proximoIO]) {
-                                proximoIO++;
-                                processoEmExecucao.definirProximoIO(proximoIO);
-                                colocarProcessoEmEspera(processoEmExecucao, filaMenorPrioridade);
-                            }
-                        }
-
-                        
+                    if (tempo >= 10000) {
+                        throw new IllegalStateException(String.format("Tempo limite excedido | tempo: %d", tempo));
                     }
-                    else{
-                        System.out.println(String.format("[EXECUÇÃO] Tempo %d: Processo %d sem I/O, tempo total de execução: %d", 
-                                                tempo, processoEmExecucao.getPid(), processoEmExecucao.tempoTotalDeExecucao()));
-                        
-                        
-                        if(tempo >= 10000){
-                            throw new IllegalStateException(String.format("Tempo limite excedido | tempo : %d", tempo));
-                        }
 
-                    
-                            
-                        if (temNovosProcessos()) {
-
-                            novoProcesso = processos.getFirst();
-
-                            //verifica se chegaram processos novos
-                            if (novoProcesso.getChegada() == tempo) {
-                                System.out.println(String.format("[CHEGADA] Tempo %d: Novo processo chegou! ID: %d, Prioridade: %d", 
-                                                        tempo, novoProcesso.getPid(), novoProcesso.getPrioridade()));
-                                definirProcessoComoPronto(novoProcesso);
-                                if (novoProcesso.getPrioridade() == 1) {
-                                    System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo de alta prioridade chegou, interrompendo FCFS", tempo));
-                                    mandarParaFinalDaFilaDePronto(processoEmExecucao, filaMenorPrioridade);
-                                }
-                            }
-                        }
-
+                    // verifica se o processo terminou o burst
+                    if (processoEmExecucao.getTurnaround() >= processoEmExecucao.tempoTotalDeExecucao()) {
+                        processoEmExecucao.alterarEstado(EEstadoProcesso.FINALIZADO);
+                        System.out.println(String.format("[FINALIZADO] Tempo %d: Processo %d finalizou",
+                                tempo, processoEmExecucao.getPid()));
+                        break;
                     }
+
+                    // verifica se o processo deve ir para I/O
+                    if (instantesIO != null && processoEmExecucao.getTurnaround() == instantesIO[proximoIO]) {
+                        System.out.println(String.format("[I/O] Tempo %d: Processo %d iniciou I/O",
+                                tempo, processoEmExecucao.getPid()));
+                        proximoIO++;
+                        processoEmExecucao.definirProximoIO(proximoIO);
+                        colocarProcessoEmEspera(processoEmExecucao, filaMenorPrioridade);
+                        break;
+                    }
+
+                    processoEmExecucao.executarProcesso();
+                    tempo++;
                     esperar();
-                    if (processoEmExecucao.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
-                        processoEmExecucao.executarProcesso();
-                    }
-                    else if (processoEmExecucao.estadoProcesso() == EEstadoProcesso.FINALIZADO) {
-                        System.out.println(String.format("[FINALIZADO]] Tempo %d: Processo %d finalizou | Tempo total de processador: %d | Tempo total de processador esperado: %d", tempo, processoEmExecucao.getPid(), processoEmExecucao.getTurnaround(), processoEmExecucao.tempoTotalDeExecucao()));   
+                    verificarNovosProcessos();
+
+                    // verifica se chegou processo de alta prioridade após executar
+                    if (filaMaiorPrioridade.temProcessosProntos()) {
+                        System.out.println(String.format("[ESCALONAMENTO] Tempo %d: Processo de alta prioridade chegou, interrompendo FCFS",
+                                tempo));
+                        mandarParaFinalDaFilaDePronto(processoEmExecucao, filaMenorPrioridade);
+                        break;
                     }
 
-                }  
+                    System.out.println(String.format("[DEBUG] Tempo %d: Processo %d | turnaround: %d | total: %d",
+                            tempo, processoEmExecucao.getPid(),
+                            processoEmExecucao.getTurnaround(),
+                            processoEmExecucao.tempoTotalDeExecucao()));
+                }
             }
+            //#endregion
         }
 
         return tempo;
+    }
+
+    private static void verificarNovosProcessos() {
+        if (!processos.isEmpty()) {
+            Processo novoProcesso = processos.getFirst();
+            if (novoProcesso.getChegada() == tempo) {
+                System.out.println(String.format("[CHEGADA] Tempo %d: Novo processo chegou! ID: %d, Prioridade: %d",
+                        tempo, novoProcesso.getPid(), novoProcesso.getPrioridade()));
+                definirProcessoComoPronto(novoProcesso);
+                processos.remove(novoProcesso);
+            }
+        }
     }
 
     private static boolean temNovosProcessos() {
@@ -234,20 +192,18 @@ public class MLQ {
     }
 
     private static void mandarParaFinalDaFilaDePronto(Processo p, FilaMLQ fila) {
-        p.alterarEstado(EEstadoProcesso.PRONTO);
         System.out.println(String.format("[FILA] Processo %d retornou ao final da fila de prontos", p.getPid()));
         fila.mandarParaFinalDaFilaDePronto(p);
     }
 
     private static void esperar() {
-        
         filaMaiorPrioridade.esperar();
         filaMenorPrioridade.esperar();
-        
     }
 
+    // Bug corrigido: lógica estava invertida com os ! desnecessários
     private static boolean temProcessosEmEspera() {
-        return !filaMaiorPrioridade.temProcessosEmEspera() || !filaMenorPrioridade.temProcessosEmEspera();
+        return filaMaiorPrioridade.temProcessosEmEspera() || filaMenorPrioridade.temProcessosEmEspera();
     }
 
     private static boolean temProcessosProntos() {
@@ -257,7 +213,7 @@ public class MLQ {
     private static void definirProcessoComoPronto(Processo p) {
         FilaMLQ filaDeProcessos;
         int prioridade = p.getPrioridade();
-        
+
         switch (prioridade) {
             case 1:
                 filaDeProcessos = filaMaiorPrioridade;
@@ -268,10 +224,9 @@ public class MLQ {
                 System.out.println(String.format("[FILA] Processo %d adicionado à fila de MENOR prioridade", p.getPid()));
                 break;
             default:
-                filaDeProcessos = null;
-                System.out.println(String.format("[ERRO] Prioridade inválida para processo %d: %d", p.getPid(), prioridade));
-                break;
+                throw new IllegalArgumentException(String.format("[ERRO] Prioridade inválida para processo %d: %d", p.getPid(), prioridade));
         }
+
         filaDeProcessos.adicionarAhFilaDePronto(p);
     }
 }
