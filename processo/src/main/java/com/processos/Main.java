@@ -1,15 +1,31 @@
 package com.processos;
 
-import com.processos.util.LeitorDeProcessos;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
-    public static void main(String[] args) {
-        Processo[] processos = LeitorDeProcessos.criarProcessos();
 
-        // for(Processo p : processos){
-        //     System.out.println(p);
-        // }
-        // System.out.println(lista[2]);
-        System.out.println("MLQ executado. Tempo total de execução " + MLQ.iniciarSimulacao());
+    public static void main(String[] args) {
+
+        List<Metricas> resultados = new ArrayList<>();
+
+        // ── 1. FCFS ──────────────────────────────────────────────────────────────
+        System.out.println("\n========== FCFS ==========");
+        resultados.add(FCFS.iniciarSimulacao());
+
+        // ── 2. SRTF ──────────────────────────────────────────────────────────────
+        System.out.println("\n========== SRTF ==========");
+        resultados.add(SRTF.iniciarSimulacao());
+
+        // ── 3. Round-Robin com Quantum por Predição ───────────────────────────────
+        System.out.println("\n========== Round-Robin Preditivo ==========");
+        resultados.add(RRPreditivo.iniciarSimulacao());
+
+        // ── 4. MLQ ───────────────────────────────────────────────────────────────
+        System.out.println("\n========== MLQ ==========");
+        resultados.add(MLQ.iniciarSimulacao());
+
+        // ── Comparativo final ─────────────────────────────────────────────────────
+        Metricas.imprimirComparativo(resultados);
     }
 }
