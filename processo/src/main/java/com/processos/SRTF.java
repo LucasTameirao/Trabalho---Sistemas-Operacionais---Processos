@@ -5,6 +5,10 @@ import java.util.List;
 
 import com.processos.util.LeitorDeProcessos;
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3f01bea (Terminando documentação dos algoritmos)
 public class SRTF {
     private static List<Processo> processos = new ArrayList<>();
     private static int tempo = 0;
@@ -12,6 +16,7 @@ public class SRTF {
     private static List<Processo> processosProntos = new ArrayList<>();
     private static List<Processo> processosEmEspera = new ArrayList<>();
 
+<<<<<<< HEAD
     private static void lerProcessos() {
         processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
         Processo novoProcesso = processos.getFirst();
@@ -20,11 +25,16 @@ public class SRTF {
     }
 
     public static int iniciarSimulacao() {
+=======
+    public static Metricas iniciarSimulacao() {
+        resetar();
+>>>>>>> 3f01bea (Terminando documentação dos algoritmos)
         lerProcessos();
         tempo = executarProcessos();
         return tempo;
     }
 
+<<<<<<< HEAD
     private static int executarProcessos() {
 
         Processo processoEmExecucao;
@@ -39,6 +49,100 @@ public class SRTF {
                     if (novoProcesso.getChegada() <= tempo) {
                         definirProcessoComoPronto(novoProcesso);
                         processos.remove(novoProcesso);
+=======
+
+    /**
+     * Limpa todas as listas e reinicia o relógio.
+     * Necessário porque os campos são static: persistem entre chamadas.
+     */
+    private static void resetar() {
+        processos.clear();
+        processosProntos.clear();
+        processosEmEspera.clear();
+        processosFinalizados.clear();
+        tempo = 0;
+    }
+
+    /**
+     * Lê os processos do arquivo e coloca o primeiro na fila de prontos.
+     *
+     * LeitorDeProcessos.criarProcessos() parseia o arquivo processos.txt
+     * e retorna um array de Processo na ordem em que aparecem no arquivo
+     * (que deve ser ordenada por tempo de chegada).
+     */
+    private static void lerProcessos() {
+    processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
+    verificarChegadas(); // substitui o getFirst() manual
+}
+
+
+    // =========================================================================
+    // LOOP PRINCIPAL DA SIMULAÇÃO
+    // =========================================================================
+
+    private static int executarProcessos() {
+
+        // Loop externo: enquanto houver processo pronto ou em I/O.
+        while (temProcessosProntos() || temProcessosEmEspera()) {
+
+            // ── CENÁRIO 1: CPU ociosa ─────────────────────────────────────────
+            // Aguarda até que algum processo em I/O conclua e volte a ficar pronto.
+            while (temProcessosEmEspera() && !temProcessosProntos()) {
+                esperar();
+                tempo++;
+                verificarChegadas();
+            }
+
+            // ── CENÁRIO 2: Seleciona o processo de menor tempo restante ───────
+            // executaMenorTempoRestante() percorre processosProntos, encontra
+            // o processo com menor tempoRestante(), o remove da lista e
+            // altera seu estado para EXECUTANDO.
+            Processo exec = executaMenorTempoRestante();
+
+            // Loop interno: executa o processo escolhido ciclo a ciclo.
+            // O loop termina quando o processo não tem mais tempo restante
+            // (tempoRestante() retorna burstTotal + penalidades de I/O - turnaround).
+            while (exec.tempoRestante() > 0) {
+
+                // Executa 1 ciclo de CPU: incrementa o turnaround interno do processo.
+                exec.executarProcesso();
+                tempo++;
+
+                // Decrementa contadores de I/O de processos em espera e
+                // recoloca na fila de prontos os que concluíram o I/O.
+                esperar();
+
+                // Verifica se algum processo do arquivo chegou agora.
+                verificarChegadas();
+
+                // ── PREEMPÇÃO ─────────────────────────────────────────────────
+                // Esta é a principal diferença do SRTF em relação ao FCFS.
+                // Após cada ciclo, verificamos se há na fila de prontos algum
+                // processo com tempo restante MENOR que o processo atual.
+                // Se sim, interrompemos o processo atual:
+                //   1. devolverParaProntos() → estado volta a PRONTO e reinsere na lista.
+                //   2. executaMenorTempoRestante() → seleciona o novo menor tempo.
+                // O processo interrompido não perde progresso: seu turnaround
+                // continua de onde parou quando for re-selecionado.
+                if (devePreemptar(exec)) {
+                    devolverParaProntos(exec);
+                    exec = executaMenorTempoRestante();
+                }
+
+                // ── Verificação de I/O ────────────────────────────────────────
+                // Verifica se o processo atingiu um instante de I/O.
+                // Mesmo após uma possível preempção, "exec" pode ter mudado,
+                // então verificamos o processo que está efetivamente executando.
+                if (exec.getInstantesIO() != null) {
+                    int proxIO = exec.proximoTempoDeIO(); // índice no array
+
+                    if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
+                        exec.definirProximoIO(proxIO + 1);
+                        // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
+                        colocarProcessoEmEspera(exec);
+                        exec = null;
+                        break;
+>>>>>>> 3f01bea (Terminando documentação dos algoritmos)
                     }
                 }
             }
@@ -157,5 +261,9 @@ public class SRTF {
                 definirProcessoComoPronto(p);
             }
         }
+    }
+
+    private static boolean temProcessosEmEspera(){
+        return !processosEmEspera.isEmpty();
     }
 }

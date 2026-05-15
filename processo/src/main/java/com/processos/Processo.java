@@ -142,9 +142,13 @@ public class Processo {
         return tempoDeEspera;
     }
 
+<<<<<<< HEAD
     public int[] getTemposDeTurnaround() {
         return temposDeTurnaround;
     }
+=======
+    public int getTempoDeProcessador()        { return turnaround; }
+>>>>>>> 3f01bea (Terminando documentação dos algoritmos)
 
     public int getTurnaround() {
         return turnaround;
