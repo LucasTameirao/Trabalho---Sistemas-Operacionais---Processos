@@ -18,7 +18,7 @@ public class Processo {
     private int tempoEsperaTotal = 0; // acumulado de ciclos em que o processo estava pronto mas não executando
 
     // Para Round-Robin preditivo: média exponencial por processo
-    private double tau; // previsão atual (τ)
+    private double previsao; // previsão atual (τ)
     private int burstAtual = 0; // tempo de CPU acumulado no surto corrente
 
     public Processo(int pid, int chegada, int burstTotal, int prioridade, int[] instantesIO) {
@@ -65,16 +65,16 @@ public class Processo {
      * Inicializa τ com o valor padrão τ₀.
      * Deve ser chamado antes de inserir o processo no escalonador RR preditivo.
      */
-    public void inicializarTau(double tau0) { this.tau = tau0; }
+    public void inicializarTau(double tau0) { this.previsao = tau0; }
 
-    public double getTau() { return tau; }
+    public double getPrevisao() { return previsao; }
 
     /**
      * Atualiza a previsão após completar um surto de CPU.
      * τ_{n+1} = α * t_n + (1 − α) * τ_n   (α = 0.5)
      */
-    public void atualizarTau(double alpha) {
-        tau = alpha * burstAtual + (1 - alpha) * tau;
+    public void atualizarPrevisaoAnterior(double alpha) {
+        previsao = alpha * burstAtual + (1 - alpha) * previsao;
         burstAtual = 0; // reseta para o próximo surto
     }
 

@@ -5,17 +5,6 @@ import java.util.List;
 
 import com.processos.util.LeitorDeProcessos;
 
-/**
- * ============================================================
- * ROUND-ROBIN COM QUANTUM POR PREDIÇÃO (Média Exponencial)
- * ============================================================
- *
- * Algoritmo que adapta dinamicamente o quantum (fatia de tempo)
- * usando média exponencial para prever a duração dos surtos de CPU.
- *
- * Fórmula: τ(n+1) = α·t(n) + (1-α)·τ(n)
- * Com α = 0.5 e τ₀ = 10
- */
 public class RRPreditivo {
 
     // Peso da média exponencial: 0.5 significa que passado e presente
@@ -23,7 +12,7 @@ public class RRPreditivo {
     private static final double ALPHA = 0.5;
 
     // Previsão usada para processos novos, que ainda não têm histórico de CPU.
-    private static final double TAU_0 = 10.0;
+    private static final double PRIMEIRA_PREVISAO = 10.0;
 
     // Processos aguardando chegada (ainda não estão no escalonador).
     private static List<Processo> processos          = new ArrayList<>();
@@ -78,9 +67,6 @@ public class RRPreditivo {
         tempo = 0;
     }
 
-    /**
-     * Lê todos os processos do arquivo e inicializa a simulação.
-     */
     private static void lerProcessos() {
         processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
         verificarChegadas();
@@ -91,123 +77,72 @@ public class RRPreditivo {
     // LOOP PRINCIPAL DA SIMULAÇÃO
     // =========================================================================
 
-    /**
-     * Coração do algoritmo Round-Robin Preditivo.
-     *
-     * ESTRUTURA PRINCIPAL:
-     *
-     * 1. Loop externo continua enquanto há processos prontos ou em I/O
-     * 2. Loop de CPU ociosa: aguarda enquanto há I/O mas nenhum pronto
-     * 3. GUARDA if: só processa se há processos prontos
-     * 4. Calcula quantum dinâmico = menor τ da fila
-     * 5. Retira processo, executa até quantum/I/O/fim
-     * 6. Atualiza τ e reinsere na fila ou finaliza
-     *
-     * A refatoração elimina o 'continue' usando guard clause (if guardando
-     * todo o bloco de processamento). Isso melhora legibilidade e mantém
-     * fluxo linear sem saltos imperceptíveis.
-     *
-     * @return tempo total de execução da simulação.
-     */
     private static int executarProcessos() {
 
-        // Loop externo: continua enquanto há processos pendentes (prontos ou em I/O)
+        // enquanto houver processo pronto ou em I/O.
         while (temProcessosProntos() || temProcessosEmEspera()) {
 
-            // ── BLOCO 1: CPU Ociosa ───────────────────────────────────────
-            // Situação: não há processos prontos, mas há em I/O.
-            // Aguardamos que algum I/O termine e retorne à fila de prontos.
+            
             while (temProcessosEmEspera() && !temProcessosProntos()) {
                 esperar();
                 tempo++;
                 verificarChegadas();
             }
 
-            // ── BLOCO 2: Processamento (Guard Clause) ──────────────────────
-            // Só processamos se há processos prontos. Isto evita:
-            // - Chamar menorTau() com fila vazia
-            // - Chamar executaPrimeiroDaLista() com fila vazia
-            // - Usar 'continue' (fluxo não-linear)
-            if (temProcessosProntos()) {
+            
+            int quantum = (int) Math.max(1, Math.round(menorTau()));
 
-                // Calcula o quantum dinâmico para esta iteração
-                // quantum = menor τ (tempo previsto) da fila
-                int quantum = (int) Math.max(1, Math.round(menorTau()));
+            // Retira o processo da FRENTE da fila (FIFO circular).
+            Processo exec = executaPrimeiroDaLista();
 
-                // Retira o primeiro processo da FRENTE da fila (FIFO circular)
-                Processo exec = executaPrimeiroDaLista();
+            // Contador de ciclos executados neste quantum.
+            int ciclosNoQuantum = 0;
 
-                // Contador de ciclos executados neste quantum
-                int ciclosNoQuantum = 0;
+            // ── Loop interno: executa até o quantum antigir o limite, fizer I/O ou terminar o processo
+            while (exec.tempoRestante() > 0 && ciclosNoQuantum < quantum) {
 
-                // ── Loop interno: executa ciclos até quantum, I/O ou fim ────
-                while (exec.tempoRestante() > 0 && ciclosNoQuantum < quantum) {
+                exec.executarProcesso();
 
-                    // Executa 1 ciclo de CPU
-                    exec.executarProcesso();
+                // Registra 1 ciclo no surto atual do processo.
+                // burstAtual é o t_n da fórmula: duração real do surto corrente.
+                exec.incrementarBurstAtual();
 
-                    // Registra o ciclo no surto atual (t_n da fórmula de atualização)
-                    exec.incrementarBurstAtual();
+                ciclosNoQuantum++;
+                tempo++;
+                esperar();
+                verificarChegadas();
 
-                    ciclosNoQuantum++;
-                    tempo++;
+                if (exec.getInstantesIO() != null) {
+                    int proxIO = exec.proximoTempoDeIO();
+                    if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
 
-                    // Avança o relógio de I/O de processos em espera
-                    esperar();
+                        
+                        exec.definirProximoIO(proxIO + 1);
 
-                    // Verifica se novos processos chegaram neste instante
-                    verificarChegadas();
+                        exec.atualizarPrevisaoAnterior(ALPHA);
 
-                    // ── Verificação de I/O ────────────────────────────────
-                    // Se o processo solicita I/O neste ciclo...
-                    if (exec.getInstantesIO() != null) {
-                        int proxIO = exec.proximoTempoDeIO();
-                        if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
+                        colocarProcessoEmEspera(exec);
 
-                            // Avança para o próximo instante de I/O
-                            exec.definirProximoIO(proxIO + 1);
-
-                            // Atualiza τ com a fórmula de média exponencial
-                            // ANTES de colocar em espera (surto termina por I/O)
-                            exec.atualizarTau(ALPHA);
-
-                            // Coloca o processo na fila de espera de I/O
-                            colocarProcessoEmEspera(exec);
-
-                            // Sinaliza que o processo foi tratado
-                            exec = null;
-
-                            // Sai do loop interno; voltará ao loop externo
-                            // quando algum I/O terminar
-                            break;
-                        }
+                        exec = null;
+                        break;
                     }
                 }
+            }
 
-                // ── Pós-loop: trata os dois casos possíveis ────────────────
-                // Executamos este bloco APENAS se exec != null
-                // (ou seja, o processo NÃO foi para I/O)
-                if (exec != null) {
-
-                    // CASO 1: Processo terminou (consumiu todo seu burst)
-                    if (exec.tempoRestante() <= 0) {
-                        // Atualiza τ com o surto final
-                        exec.atualizarTau(ALPHA);
-                        // Registra a finalização com o instante atual
-                        finalizarProcesso(exec, tempo);
-                    }
-                    // CASO 2: Processo esgotou o quantum mas ainda tem tempo
-                    else {
-                        // Atualiza τ com o surto executado neste quantum
-                        exec.atualizarTau(ALPHA);
-                        // Marca como PRONTO
-                        exec.alterarEstado(EEstadoProcesso.PRONTO);
-                        // Devolve ao FIM da fila para próximo rodízio
-                        processosProntos.add(exec);
-                    }
+            if (exec != null) {
+                    
+                // CASO 1: Processo terminou (tempoRestante <= 0)
+                if (exec.tempoRestante() <= 0) {
+                    exec.atualizarPrevisaoAnterior(ALPHA);
+                    finalizarProcesso(exec, tempo);
                 }
-
-            }  // ← Fecha o if (temProcessosProntos())
+                // CASO 2: Processo esgotou o quantum mas ainda tem tempo
+                else {
+                    exec.atualizarPrevisaoAnterior(ALPHA);
+                    exec.alterarEstado(EEstadoProcesso.PRONTO);
+                    processosProntos.add(exec);
+                }
+            }
         }
 
         return tempo;
@@ -218,12 +153,10 @@ public class RRPreditivo {
     // MÉTODOS AUXILIARES (HELPERS)
     // =========================================================================
 
-    /**
-     * Verifica se há processo em espera de I/O.
-     */
     private static boolean temProcessosEmEspera() {
         return !processosEmEspera.isEmpty();
     }
+
 
     /**
      * Percorre a fila de prontos e retorna o menor valor de τ encontrado.
@@ -232,16 +165,13 @@ public class RRPreditivo {
      * A ideia é que o quantum respeite o processo mais rápido da fila,
      * evitando que ele seja interrompido no meio do seu surto previsto.
      *
-     * NOTA: Só é chamada dentro de if (temProcessosProntos()), portanto
-     * a fila nunca está vazia quando este método executa.
-     *
      * @return o menor τ entre os processos em processosProntos.
      */
     private static double menorTau() {
-        double menor = processosProntos.getFirst().getTau();
+        double menor = processosProntos.getFirst().getPrevisao();
         for (Processo p : processosProntos) {
-            if (p.getTau() < menor) {
-                menor = p.getTau();
+            if (p.getPrevisao() < menor) {
+                menor = p.getPrevisao();
             }
         }
         return menor;
@@ -251,22 +181,25 @@ public class RRPreditivo {
      * Verifica se algum processo do arquivo chegou no tempo atual e o move
      * para a fila de prontos, inicializando seu τ antes de inserir.
      *
-     * Usa while em vez de if para processar TODOS os processos com
-     * chegada <= tempo atual em uma única chamada. Isto corrige o bug
-     * onde processos com chegada=0 entravam um por ciclo.
+     * CORREÇÃO: substituído if por while para processar todos os processos
+     * com chegada <= tempo atual em uma única chamada. Sem isso, quando
+     * vários processos chegavam no mesmo instante (ex: chegada=0), apenas
+     * um entrava por ciclo, distorcendo o escalonamento.
      *
-     * Inicializa τ = TAU_0 para processos novos, pois sem isso getTau()
-     * retornaria 0.0 e menorTau() calcularia quantum=0, travando a simulação.
+     * INICIALIZAÇÃO DE τ: obrigatória aqui porque processos que chegam
+     * durante a simulação ainda não têm histórico de CPU. Sem inicializar,
+     * getTau() retorna 0.0 (valor padrão de double em Java), e menorTau()
+     * calcularia um quantum de 0, travando a simulação.
      */
     private static void verificarChegadas() {
         while (!processos.isEmpty()) {
             Processo novo = processos.getFirst();
             if (novo.getChegada() <= tempo) {
-                novo.inicializarTau(TAU_0);
+                novo.inicializarTau(PRIMEIRA_PREVISAO); // processo novo sem histórico → τ₀ = 10
                 definirProcessoComoPronto(novo);
                 processos.remove(novo);
             } else {
-                break;
+                break; // lista ordenada por chegada: se este não chegou, nenhum chegou
             }
         }
     }
@@ -295,9 +228,6 @@ public class RRPreditivo {
      * é o primeiro a executar. Quando um processo esgota o quantum,
      * ele volta ao FIM da fila (via processosProntos.add()), garantindo
      * que todos os processos se revezem de forma justa.
-     *
-     * NOTA: Só é chamado dentro de if (temProcessosProntos()), portanto
-     * a fila nunca está vazia quando este método executa.
      */
     private static Processo executaPrimeiroDaLista() {
         Processo p = processosProntos.removeFirst();
@@ -336,7 +266,7 @@ public class RRPreditivo {
      * altera o estado do processo para PRONTO. Detectamos isso e
      * movemos o processo para processosProntos.
      *
-     * Usa índice inteiro em vez de for-each para evitar
+     * Nota: usamos índice inteiro em vez de for-each para evitar
      * ConcurrentModificationException, já que a lista pode ser alterada
      * por definirProcessoComoPronto() durante a iteração.
      */
