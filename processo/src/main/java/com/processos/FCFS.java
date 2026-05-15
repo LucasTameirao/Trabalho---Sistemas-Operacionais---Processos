@@ -164,7 +164,7 @@ public class FCFS {
     private static int executarProcessos() {
 
         // Loop externo: continua enquanto há trabalho pendente (prontos ou em I/O).
-        while (temProcessosProntos() || !processosEmEspera.isEmpty()) {
+        while (temProcessosProntos() || temProcessosEmEspera()) {
 
             // ── CENÁRIO 1: CPU ociosa ─────────────────────────────────────────
             // Se não há processo pronto mas há processos em I/O, o sistema
@@ -173,7 +173,7 @@ public class FCFS {
             //   - se algum processo zera o contador, ele volta para processosProntos;
             //   - verificarChegadas() verifica se novos processos chegaram;
             //   - tempo++ avança o relógio.
-            while (!processosEmEspera.isEmpty() && !temProcessosProntos()) {
+            while (temProcessosEmEspera() && !temProcessosProntos()) {
                 esperar();
                 tempo++;
                 verificarChegadas();
@@ -195,7 +195,7 @@ public class FCFS {
 
             // Loop interno: executa o processo ciclo a ciclo até ele terminar
             // ou ser bloqueado por I/O (break).
-            while (exec.getTurnaround() < tempoTotalExec) {
+            while (exec.getTempoDeProcessador() < tempoTotalExec) {
 
                 // executarProcesso() incrementa o contador interno "turnaround"
                 // do processo, representando mais 1 unidade de CPU consumida.
@@ -219,7 +219,7 @@ public class FCFS {
                 if (instantesIO != null) {
                     int proxIO = exec.proximoTempoDeIO(); // índice no array instantesIO[]
 
-                    if (exec.getTurnaround() == instantesIO[proxIO]) {
+                    if (exec.getTempoDeProcessador() == instantesIO[proxIO]) {
                         // O processo atingiu um instante de I/O:
                         // 1. Avança o índice para o próximo I/O no array.
                         exec.definirProximoIO(proxIO + 1);
@@ -365,5 +365,9 @@ public class FCFS {
                 definirProcessoComoPronto(p);
             }
         }
+    }
+
+    private static boolean temProcessosEmEspera(){
+        return !processosEmEspera.isEmpty();
     }
 }

@@ -118,7 +118,7 @@ public class Processo {
         return tempoDeEspera;
     }
 
-    public int getTurnaround()        { return turnaround; }
+    public int getTempoDeProcessador()        { return turnaround; }
 
     public int proximoTempoDeIO()     { return proximoIO; }
 

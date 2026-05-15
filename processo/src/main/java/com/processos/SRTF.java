@@ -5,38 +5,7 @@ import java.util.List;
 
 import com.processos.util.LeitorDeProcessos;
 
-/**
- * ============================================================
- * SRTF — Shortest Remaining Time First
- *         (Menor Tempo Restante Primeiro)
- * ============================================================
- *
- * CONCEITO DO ALGORITMO:
- * O SRTF é a versão preemptiva do SJF (Shortest Job First).
- * A regra é simples: a CPU sempre vai para o processo que tem o
- * MENOR TEMPO RESTANTE de execução naquele instante.
- *
- * É PREEMPTIVO: se um novo processo chega com tempo restante menor
- * do que o processo atualmente em execução, o processo atual é
- * interrompido, devolvido à fila de prontos, e o recém-chegado
- * assume a CPU. Isso é chamado de "preempção".
- *
- * VANTAGEM: minimiza o tempo médio de espera — ótimo teoricamente.
- * DESVANTAGEM: pode causar "starvation" (inanição) em processos longos
- * se processos curtos continuam chegando indefinidamente.
- *
- * ESTRUTURAS DE DADOS:
- * As mesmas quatro listas do FCFS, com a diferença crítica de que
- * processosProntos não é consultada por ordem de inserção (FIFO),
- * mas sim pelo processo com menor tempoRestante() entre todos.
- *
- * - processos:             fila de chegada externa (do arquivo).
- * - processosProntos:      candidatos à CPU; o escolhido é sempre o de
- *                          menor tempoRestante(), não necessariamente o primeiro.
- * - processosEmEspera:     processos bloqueados aguardando I/O (5 unidades).
- * - processosFinalizados:  processos encerrados, usados para calcular métricas.
- * - tempo:                 relógio global da simulação.
- */
+
 public class SRTF {
 
     // Processos aguardando chegada (ainda não estão no escalonador).
@@ -57,21 +26,6 @@ public class SRTF {
     private static int tempo = 0;
 
 
-    // =========================================================================
-    // API PÚBLICA
-    // =========================================================================
-
-    /**
-     * Ponto de entrada único da simulação SRTF.
-     *
-     * Mesmo padrão do FCFS:
-     * 1. resetar()            → garante estado limpo entre execuções.
-     * 2. lerProcessos()       → lê o arquivo e inicializa a fila.
-     * 3. executarProcessos()  → loop principal com lógica SRTF.
-     * 4. Metricas             → calcula e exibe os resultados.
-     *
-     * @return objeto Metricas com turnaround médio, espera média e throughput.
-     */
     public static Metricas iniciarSimulacao() {
         resetar();
         lerProcessos();
@@ -81,10 +35,6 @@ public class SRTF {
         return m;
     }
 
-
-    // =========================================================================
-    // INICIALIZAÇÃO
-    // =========================================================================
 
     /**
      * Limpa todas as listas e reinicia o relógio.
@@ -115,34 +65,14 @@ public class SRTF {
     // LOOP PRINCIPAL DA SIMULAÇÃO
     // =========================================================================
 
-    /**
-     * Coração do algoritmo SRTF.
-     *
-     * Diferença fundamental em relação ao FCFS:
-     * a cada ciclo de CPU, verificamos se um processo novo chegou e se ele
-     * tem tempo restante menor que o processo atual. Se sim, ocorre PREEMPÇÃO.
-     *
-     * CENÁRIO 1 — CPU ociosa (mesmo que FCFS):
-     *   Todos os processos estão em I/O. O sistema aguarda, decrementando
-     *   contadores de espera, até que algum processo conclua o I/O.
-     *
-     * CENÁRIO 2 — Há processo pronto:
-     *   Seleciona o processo com MENOR tempoRestante() da fila de prontos.
-     *   Executa ciclo a ciclo. A cada ciclo:
-     *     a) Verifica se um processo novo chegou (verificarChegadas).
-     *     b) Verifica se o recém-chegado tem tempo menor → PREEMPÇÃO.
-     *     c) Verifica se o processo atual atingiu um instante de I/O → I/O.
-     *
-     * @return tempo total de execução da simulação.
-     */
     private static int executarProcessos() {
 
         // Loop externo: enquanto houver processo pronto ou em I/O.
-        while (temProcessosProntos() || !processosEmEspera.isEmpty()) {
+        while (temProcessosProntos() || temProcessosEmEspera()) {
 
             // ── CENÁRIO 1: CPU ociosa ─────────────────────────────────────────
             // Aguarda até que algum processo em I/O conclua e volte a ficar pronto.
-            while (!processosEmEspera.isEmpty() && !temProcessosProntos()) {
+            while (temProcessosEmEspera() && !temProcessosProntos()) {
                 esperar();
                 tempo++;
                 verificarChegadas();
@@ -191,7 +121,7 @@ public class SRTF {
                 if (exec.getInstantesIO() != null) {
                     int proxIO = exec.proximoTempoDeIO(); // índice no array
 
-                    if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
+                    if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
                         exec.definirProximoIO(proxIO + 1);
                         // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
                         colocarProcessoEmEspera(exec);
@@ -358,5 +288,9 @@ public class SRTF {
                 definirProcessoComoPronto(p);
             }
         }
+    }
+
+    private static boolean temProcessosEmEspera(){
+        return !processosEmEspera.isEmpty();
     }
 }

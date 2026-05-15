@@ -5,83 +5,9 @@ import java.util.List;
 
 import com.processos.util.LeitorDeProcessos;
 
-/**
- * ============================================================
- * MLQ — Multilevel Queue (Fila Multinível)
- * ============================================================
- *
- * CONCEITO DO ALGORITMO:
- * O MLQ organiza os processos em filas separadas de acordo com sua
- * PRIORIDADE. Cada fila tem seu próprio algoritmo de escalonamento,
- * e existe uma hierarquia rígida entre elas: processos de maior
- * prioridade sempre executam antes dos de menor prioridade.
- *
- * NESTE PROJETO, implementamos duas filas:
- *
- *   ┌─────────────────────────────────────────────────────┐
- *   │  FILA 1 (prioridade == 1) → Round-Robin, quantum=2  │  ← Alta prioridade
- *   ├─────────────────────────────────────────────────────┤
- *   │  FILA 2 (prioridade == 2) → FCFS                    │  ← Baixa prioridade
- *   └─────────────────────────────────────────────────────┘
- *
- * REGRA FUNDAMENTAL:
- * A Fila 2 só recebe CPU quando a Fila 1 está completamente vazia.
- * Se um processo de alta prioridade chegar enquanto um processo de
- * baixa prioridade está executando, ocorre PREEMPÇÃO IMEDIATA: o
- * processo da Fila 2 é interrompido e a CPU é entregue à Fila 1.
- *
- * POR QUE ROUND-ROBIN PARA A FILA 1?
- * Processos de alta prioridade tendem a ser interativos (ex: interface
- * de usuário, processos de sistema). O Round-Robin distribui a CPU
- * entre eles de forma justa e com baixa latência, evitando que um
- * único processo de alta prioridade monopolize a CPU.
- *
- * POR QUE FCFS PARA A FILA 2?
- * Processos de baixa prioridade tendem a ser tarefas de fundo (ex:
- * backups, processamento em lote). Para esses casos, a simplicidade
- * do FCFS é suficiente: não há necessidade de preempção entre eles,
- * e o mais importante é que sejam concluídos em algum momento.
- *
- * DECISÃO DE PROJETO — CLASSE FilaMLQ:
- * Em vez de gerenciar listas brutas como nos outros algoritmos (FCFS,
- * SRTF, RRPreditivo), aqui usamos a classe FilaMLQ, que encapsula
- * internamente as listas de processos PRONTOS e EM_ESPERA de cada fila.
- * Isso torna o código do MLQ mais limpo, pois operações como
- * "colocar em espera" e "avançar I/O" são delegadas ao objeto FilaMLQ,
- * em vez de serem repetidas aqui com manipulação direta de listas.
- *
- * ESTRUTURAS DE DADOS UTILIZADAS:
- * - processos:             lista global de processos aguardando chegada.
- *                          Não pertencem a nenhuma fila ainda. Ordenada
- *                          por tempo de chegada (vem do arquivo).
- *
- * - processosFinalizados:  lista global de processos que terminaram.
- *                          Usada exclusivamente para calcular as métricas.
- *
- * - filaMaiorPrioridade:   instância de FilaMLQ responsável pelos
- *                          processos com prioridade == 1 (Round-Robin).
- *                          Internamente mantém suas próprias listas de
- *                          prontos e em espera.
- *
- * - filaMenorPrioridade:   instância de FilaMLQ responsável pelos
- *                          processos com prioridade == 2 (FCFS).
- *                          Internamente mantém suas próprias listas de
- *                          prontos e em espera.
- *
- * - tempo:                 relógio global da simulação. Avança 1 unidade
- *                          a cada ciclo de CPU executado.
- */
+
 public class MLQ {
 
-    /**
-     * Quantum fixo para a Fila 1 (Round-Robin).
-     *
-     * DECISÃO DE PROJETO: fixamos quantum = 2 para processos de alta
-     * prioridade. Um quantum pequeno garante que vários processos de
-     * alta prioridade se revezem rapidamente na CPU, mantendo o sistema
-     * responsivo. Um quantum maior reduziria a troca de contexto, mas
-     * aumentaria a latência dos demais processos da mesma fila.
-     */
     private static final int QUANTUM_FILA1 = 2;
 
     // Lista global de processos que ainda não chegaram ao escalonador.
@@ -109,42 +35,7 @@ public class MLQ {
     private static FilaMLQ filaMenorPrioridade = new FilaMLQ();
 
 
-    // =========================================================================
-    // API PÚBLICA
-    // =========================================================================
 
-    /**
-     * Ponto de entrada único da simulação MLQ.
-     *
-     * Segue o mesmo padrão dos outros algoritmos do projeto:
-     *
-     * 1. resetar()            → limpa estado de execuções anteriores.
-     *                           Necessário porque todos os campos são static:
-     *                           sem reset, uma segunda chamada acumularia
-     *                           dados da rodada anterior.
-     *
-     * 2. lerProcessos()       → lê processos.txt via LeitorDeProcessos e
-     *                           coloca o primeiro processo na fila correta
-     *                           conforme sua prioridade.
-     *
-     * 3. executarProcessos()  → roda o loop principal com toda a lógica
-     *                           MLQ (RR para Fila 1, FCFS para Fila 2,
-     *                           preempção, I/O). Retorna o tempo total.
-     *
-     * 4. new Metricas(...)    → cria o relatório de desempenho com a lista
-     *                           de processos finalizados (que contêm o
-     *                           instante de fim gravado durante a execução)
-     *                           e o tempo total da simulação.
-     *
-     * 5. m.imprimir()         → exibe Turnaround Médio, Espera Média e
-     *                           Throughput no console.
-     *
-     * 6. return m             → devolve o objeto Metricas para o Main,
-     *                           que o acumula na lista para o comparativo
-     *                           final entre todos os algoritmos.
-     *
-     * @return objeto Metricas com os resultados desta simulação.
-     */
     public static Metricas iniciarSimulacao() {
         resetar();
         lerProcessos();
@@ -155,23 +46,6 @@ public class MLQ {
     }
 
 
-    // =========================================================================
-    // INICIALIZAÇÃO
-    // =========================================================================
-
-    /**
-     * Limpa todo o estado interno para permitir múltiplas execuções.
-     *
-     * Como os campos são static, eles persistem enquanto a JVM estiver
-     * rodando. Se o Main chamar iniciarSimulacao() mais de uma vez (por
-     * exemplo, em testes ou em comparativos), sem esse reset os dados
-     * da execução anterior contaminariam a nova rodada.
-     *
-     * DECISÃO DE PROJETO: em vez de limpar os campos de FilaMLQ diretamente,
-     * recriamos os objetos (new FilaMLQ()). Isso é mais seguro porque garante
-     * que o estado interno das filas — incluindo suas listas de prontos e em
-     * espera — começa do zero, sem depender de um método clear() interno.
-     */
     private static void resetar() {
         processos.clear();
         processosFinalizados.clear();
@@ -180,66 +54,18 @@ public class MLQ {
         tempo = 0;
     }
 
-    /**
-     * Lê todos os processos do arquivo e inicializa a simulação.
-     *
-     * LeitorDeProcessos.criarProcessos() abre o arquivo processos.txt,
-     * parseia cada linha no formato "pid;chegada;burst;prioridade[;io1,io2,...]"
-     * e retorna um array de objetos Processo prontos para uso.
-     *
-     * DECISÃO DE PROJETO — por que colocar apenas o primeiro na fila?
-     * O arquivo está ordenado por tempo de chegada. Colocar todos de uma
-     * vez ignoraria o tempo de chegada de cada processo. A abordagem correta
-     * é colocar apenas o primeiro (que chega em t=0 ou mais cedo) e deixar
-     * os outros chegarem naturalmente durante a simulação via verificarChegadas().
-     *
-     * ROTEAMENTO POR PRIORIDADE:
-     * O método definirProcessoComoPronto() verifica a prioridade do processo
-     * e o envia para filaMaiorPrioridade (prioridade==1) ou filaMenorPrioridade
-     * (prioridade==2). Isso vale tanto aqui quanto para chegadas durante a simulação.
-     */
+
     private static void lerProcessos() {
     processos.addAll(List.of(LeitorDeProcessos.criarProcessos()));
     verificarChegadas(); // adiciona TODOS os que chegaram em t=0 de uma vez
-}
+    }
 
 
     // =========================================================================
     // LOOP PRINCIPAL DA SIMULAÇÃO
     // =========================================================================
 
-    /**
-     * Coração do algoritmo MLQ.
-     *
-     * O loop principal continua enquanto houver algum processo pendente,
-     * seja nas filas de prontos (Fila 1 ou Fila 2) ou nas filas de espera
-     * de I/O (de qualquer uma das duas filas).
-     *
-     * A estrutura do loop é dividida em três blocos:
-     *
-     * ┌─────────────────────────────────────────────────────────────────────┐
-     * │  BLOCO A — CPU OCIOSA                                               │
-     * │  Nenhum processo está pronto; todos estão aguardando I/O.           │
-     * │  O simulador avança o tempo unidade por unidade até que algum       │
-     * │  processo conclua seu I/O e retorne para uma das filas de prontos.  │
-     * ├─────────────────────────────────────────────────────────────────────┤
-     * │  BLOCO B — FILA 1 (Round-Robin, quantum=2)                          │
-     * │  Executa todos os processos da Fila 1 em rodízio antes de liberar   │
-     * │  a CPU para a Fila 2. Cada processo recebe no máximo QUANTUM_FILA1  │
-     * │  ciclos consecutivos. Se esgota o quantum sem terminar, volta ao    │
-     * │  fim da fila (comportamento circular). Se um processo de alta       │
-     * │  prioridade retornar do I/O durante a execução da Fila 1, ele já    │
-     * │  entra na própria Fila 1 e será atendido na próxima iteração.       │
-     * ├─────────────────────────────────────────────────────────────────────┤
-     * │  BLOCO C — FILA 2 (FCFS)                                            │
-     * │  Só executa se a Fila 1 estiver vazia. Sem preempção entre          │
-     * │  processos da Fila 2, mas com preempção PELA Fila 1: se um processo │
-     * │  de alta prioridade chegar (via chegada nova ou retorno de I/O),    │
-     * │  o processo da Fila 2 é interrompido imediatamente.                 │
-     * └─────────────────────────────────────────────────────────────────────┘
-     *
-     * @return tempo total de execução da simulação.
-     */
+
     private static int executarProcessos() {
 
         // Loop externo: continua enquanto há trabalho pendente.
@@ -247,21 +73,6 @@ public class MLQ {
         // temProcessosEmEspera() verifica I/O pendente em AMBAS as filas.
         while (temProcessosProntos() || temProcessosEmEspera()) {
 
-            // ── BLOCO A: CPU ociosa ───────────────────────────────────────────
-            // Situação: nenhum processo está pronto, mas existem processos
-            // bloqueados aguardando I/O. Precisamos avançar o tempo até que
-            // algum deles conclua a operação de I/O e retorne para uma fila.
-            //
-            // esperar()         → FilaMLQ.esperar() decrementa o contador de
-            //                     I/O de cada processo em espera. Quando o
-            //                     contador chega a zero, FilaMLQ move o processo
-            //                     automaticamente para sua fila de prontos.
-            //
-            // tempo++           → avança o relógio global 1 unidade.
-            //
-            // verificarChegadas() → verifica se algum processo do arquivo
-            //                       chegou no instante atual e o coloca na
-            //                       fila correta (Fila 1 ou Fila 2).
             while (!temProcessosProntos() && temProcessosEmEspera()) {
                 esperar();
                 tempo++;
@@ -272,10 +83,7 @@ public class MLQ {
             // ══════════════════════════════════════════════════════════════════
             // BLOCO B — FILA 1: Round-Robin com quantum = QUANTUM_FILA1 (2)
             // ══════════════════════════════════════════════════════════════════
-            // Enquanto houver processo pronto na Fila 1, o escalonador permanece
-            // aqui, servindo todos antes de sequer olhar para a Fila 2.
-            // Isso implementa a hierarquia de prioridades: a Fila 2 só existe
-            // para o escalonador quando a Fila 1 está completamente vazia.
+
             while (filaMaiorPrioridade.temProcessosProntos()) {
 
                 // Retira o primeiro processo da Fila 1 e o marca como EXECUTANDO.
@@ -289,7 +97,6 @@ public class MLQ {
                 // Quando ciclos == QUANTUM_FILA1, o processo esgotou sua fatia.
                 int ciclos = 0;
 
-                // ── Loop interno da Fila 1 ────────────────────────────────────
                 // Executa o processo ciclo a ciclo enquanto:
                 //   (a) ainda está em estado EXECUTANDO (não foi para I/O)
                 //   (b) não esgotou o quantum (ciclos < QUANTUM_FILA1)
@@ -297,23 +104,10 @@ public class MLQ {
                         && ciclos < QUANTUM_FILA1) {
 
                     // ── Verificação de I/O ANTES de executar ─────────────────
-                    // DECISÃO DE PROJETO: verificamos I/O antes de incrementar
-                    // o turnaround, porque o instante de I/O representa o momento
-                    // em que o processo SOLICITARIA a operação — antes de consumir
-                    // mais um ciclo de CPU.
-                    //
-                    // Processo.getInstantesIO() retorna o array de instantes em que
-                    // o processo solicita I/O (ex: [3, 7] significa I/O no 3º e 7º
-                    // ciclos de CPU). Se null, o processo não tem I/O.
-                    //
-                    // Processo.proximoTempoDeIO() retorna o índice atual no array,
-                    // indicando qual é o próximo instante de I/O a ser verificado.
-                    //
-                    // Processo.getTurnaround() retorna quantos ciclos de CPU o
-                    // processo já consumiu ao total.
+
                     if (exec.getInstantesIO() != null) {
                         int proxIO = exec.proximoTempoDeIO();
-                        if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
+                        if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
 
                                 exec.definirProximoIO(proxIO + 1);
                                 // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
@@ -354,20 +148,6 @@ public class MLQ {
                     }
                 }
 
-                // ── Pós-loop da Fila 1 ────────────────────────────────────────
-                // exec != null significa que o processo ainda está executando
-                // (não saiu por I/O nem terminou). Isso ocorre quando esgotou
-                // o quantum sem concluir.
-                //
-                // COMPORTAMENTO ROUND-ROBIN:
-                // mandarParaFinalDaFilaDePronto() reinsere o processo no FIM
-                // da fila de prontos da Fila 1. Isso garante o rodízio justo:
-                // o processo voltará a executar somente após todos os outros
-                // processos da Fila 1 receberem seu quantum.
-                //
-                // IMPORTANTE: o processo não perde progresso. Seu turnaround
-                // interno continua acumulado e tempoRestante() refletirá
-                // corretamente o quanto ainda falta executar.
                 if (exec != null && exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
                     mandarParaFinalDaFilaDePronto(exec, filaMaiorPrioridade);
                 }
@@ -377,17 +157,7 @@ public class MLQ {
             // ══════════════════════════════════════════════════════════════════
             // BLOCO C — FILA 2: FCFS
             // ══════════════════════════════════════════════════════════════════
-            // Este bloco só é alcançado quando filaMaiorPrioridade está vazia.
-            // A dupla condição do while garante isso:
-            //   - filaMenorPrioridade.temProcessosProntos(): há processo na Fila 2
-            //   - !filaMaiorPrioridade.temProcessosProntos(): Fila 1 está vazia
-            //
-            // COMPORTAMENTO FCFS:
-            // Sem preempção entre processos da Fila 2. O processo atual executa
-            // ininterruptamente até terminar ou solicitar I/O — A NÃO SER QUE
-            // um processo de alta prioridade chegue (nova chegada ou retorno de I/O).
-            // Nesse caso, ocorre preempção pela Fila 1, e o processo da Fila 2
-            // é devolvido ao fim de sua fila para retomar depois.
+
             while (filaMenorPrioridade.temProcessosProntos()
                     && !filaMaiorPrioridade.temProcessosProntos()) {
 
@@ -402,14 +172,12 @@ public class MLQ {
                         && !filaMaiorPrioridade.temProcessosProntos()) {
 
                     // ── Verificação de I/O ANTES de executar ─────────────────
-                    // Mesma lógica da Fila 1: verificamos antes de consumir
-                    // mais um ciclo de CPU.
+
                     if (exec.getInstantesIO() != null) {
                         int proxIO = exec.proximoTempoDeIO();
-                        if (exec.getTurnaround() == exec.getInstantesIO()[proxIO]) {
+                        if (exec.getTempoDeProcessador() == exec.getInstantesIO()[proxIO]) {
 
                                 exec.definirProximoIO(proxIO + 1);
-                                // exec.aumentarTempoTotalDeExecucao(); ← REMOVER esta linha
                                 colocarProcessoEmEspera(exec, filaMenorPrioridade);
                                 exec = null;
                                 break;
@@ -453,14 +221,6 @@ public class MLQ {
                     }
                 }
 
-                // ── Pós-loop da Fila 2 ────────────────────────────────────────
-                // Se exec != null aqui, significa que o processo saiu do loop
-                // interno porque a Fila 1 ficou não-vazia (condição do while:
-                // !filaMaiorPrioridade.temProcessosProntos() tornou-se false),
-                // mas a preempção explícita acima ainda não o tratou.
-                // Isso pode ocorrer se a condição do while falhar ANTES da
-                // verificação interna de preempção. Por segurança, devolvemos
-                // o processo ao fim da fila para que retome na próxima rodada.
                 if (exec != null && exec.estadoProcesso() == EEstadoProcesso.EXECUTANDO) {
                     mandarParaFinalDaFilaDePronto(exec, filaMenorPrioridade);
                 }
